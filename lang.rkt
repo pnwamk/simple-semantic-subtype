@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
-(require racket/match
+(require racket/list
+         racket/match
          "set-utils.rkt")
 
 (define-type Tag Symbol)
@@ -28,64 +29,60 @@
 (define UnivTag : Type (Not (Or (set UnivProd UnivArrow Int))))
 
 
-(struct TagConjunct ([pos : (Setof Tag)] [neg : (Setof (Not Tag))]))
-(struct RangeConjunct ([pos : (Setof Range)] [neg : (Setof (Not Range))]))
-(struct ProdConjunct ([pos : (Setof Prod)] [neg : (Setof (Not Prod))]))
-(struct ArrowConjunct ([pos : (Setof Arrow)] [neg : (Setof (Not Arrow))]))
+(struct DNF ([tags   : (Tuple (Setof Tag)   (Setof (Not Tag)))]
+             [ranges : (Tuple (Setof Range) (Setof (Not Range)))]
+             [products  : (Tuple (Setof Prod)  (Setof (Not Prod)))]
+             [arrows : (Tuple (Setof Arrow) (Setof (Not Arrow)))]))
 
-(struct Disjunct ([tag-clauses : TagConjunct]
-                  [range-clauses : RangeConjunct]
-                  [prod-clauses : ProdConjunct]
-                  [arrow-clauses : ArrowConjunct]))
+(define empty-clause (list (set) (set)))
+(define empty-disj (DNF empty-clause
+                        empty-clause
+                        empty-clause
+                        empty-clause))
 
-(define empty-disj (Disjunct (TagConjunct   (set) (set))
-                             (RangeConjunct (set) (set))
-                             (ProdConjunct  (set) (set))
-                             (ArrowConjunct (set) (set))))
-
-(: ->DNF (-> Type Disjunct))
+(: ->DNF (-> Type DNF))
 (define (->DNF t)
   (match t
     [(? tag?)
-     (Disjunct (TagConjunct   (set t) (set))
-               (RangeConjunct (set)   (set))
-               (ProdConjunct  (set)   (set))
-               (ArrowConjunct (set)   (set)))]
+     (DNF (list (set t) (set))
+          empty-clause
+          empty-clause
+          empty-clause)]
     [(? Range?)
-     (Disjunct (TagConjunct   (set)   (set))
-               (RangeConjunct (set t) (set))
-               (ProdConjunct  (set)   (set))
-               (ArrowConjunct (set)   (set)))]
+     (DNF empty-clause
+          (list (set t) (set))
+          empty-clause
+          empty-clause)]
     [(? Prod?)
-     (Disjunct (TagConjunct   (set)   (set))
-               (RangeConjunct (set)   (set))
-               (ProdConjunct  (set t) (set))
-               (ArrowConjunct (set)   (set)))]
+     (DNF empty-clause
+          empty-clause
+          (list (set t) (set))
+          empty-clause)]
     [(? Arrow?)
-     (Disjunct (TagConjunct   (set)   (set))
-               (RangeConjunct (set)   (set))
-               (ProdConjunct  (set)   (set))
-               (ArrowConjunct (set t) (set)))]
+     (DNF empty-clause
+          empty-clause
+          empty-clause
+          (list (set t) (set)))]
     [(Not (? tag? t))
-     (Disjunct (TagConjunct   (set) (set (Not t)))
-               (RangeConjunct (set) (set))
-               (ProdConjunct  (set) (set))
-               (ArrowConjunct (set) (set)))]
+     (DNF (list (set) (set (Not t)))
+          empty-clause
+          empty-clause
+          empty-clause)]
     [(Not (? Range? t))
-     (Disjunct (TagConjunct   (set) (set))
-               (RangeConjunct (set) (set (Not t)))
-               (ProdConjunct  (set) (set))
-               (ArrowConjunct (set) (set)))]
+     (DNF empty-clause
+          (list (set) (set (Not t)))
+          empty-clause
+          empty-clause)]
     [(Not (? Prod? t))
-     (Disjunct (TagConjunct   (set) (set))
-               (RangeConjunct (set) (set))
-               (ProdConjunct  (set) (set (Not t)))
-               (ArrowConjunct (set) (set)))]
+     (DNF empty-clause
+          empty-clause
+          (list (set) (set (Not t)))
+          empty-clause)]
     [(Not (? Arrow? t))
-     (Disjunct (TagConjunct   (set) (set))
-               (RangeConjunct (set) (set))
-               (ProdConjunct  (set) (set))
-               (ArrowConjunct (set) (set (Not t))))]
+     (DNF empty-clause
+          empty-clause
+          empty-clause
+          (list (set) (set (Not t))))]
     [(Or ts)
      (foldl disjunct-or
             empty-disj
@@ -95,41 +92,41 @@
             empty-disj
             (map ->DNF ts))]))
 
-(: disjunct-or (-> Disjunct Disjunct Disjunct))
+(: disjunct-or (-> DNF DNF DNF))
 (define (disjunct-or d1 d2)
   (match* (d1 d2)
-    [((Disjunct (TagConjunct   ts1+ ts1-)
-                (RangeConjunct rs1+ rs1-)
-                (ProdConjunct  ps1+ ps1-)
-                (ArrowConjunct as1+ as1-))
-      (Disjunct (TagConjunct   ts2+ ts2-)
-                (RangeConjunct rs2+ rs2-)
-                (ProdConjunct  ps2+ ps2-)
-                (ArrowConjunct as2+ as2-)))
-     (Disjunct (TagConjunct   (set-union ts1+ ts2+)
-                              (set-union ts1- ts2-))
-               (RangeConjunct (set-union rs1+ rs2+)
-                              (set-union rs1- rs2-))
-               (ProdConjunct  (set-union ps1+ ps2+)
-                              (set-union ps1- ps2-))
-               (ArrowConjunct (set-union as1+ as2+)
-                              (set-union as1- as2-)))]))
+    [((DNF (list ts1+ ts1-)
+           (list rs1+ rs1-)
+           (list ps1+ ps1-)
+           (list as1+ as1-))
+      (DNF (list ts2+ ts2-)
+           (list rs2+ rs2-)
+           (list ps2+ ps2-)
+           (list as2+ as2-)))
+     (DNF (list (set-union ts1+ ts2+)
+                (set-union ts1- ts2-))
+          (list (set-union rs1+ rs2+)
+                (set-union rs1- rs2-))
+          (list (set-union ps1+ ps2+)
+                (set-union ps1- ps2-))
+          (list (set-union as1+ as2+)
+                (set-union as1- as2-)))]))
 
-(: disjunct-and (-> Disjunct Disjunct Disjunct))
+(: disjunct-and (-> DNF DNF DNF))
 (define (disjunct-and d1 d2)
   (match* (d1 d2)
-    [((Disjunct (TagConjunct   ts1+ ts1-)
-                (RangeConjunct rs1+ rs1-)
-                (ProdConjunct  ps1+ ps1-)
-                (ArrowConjunct as1+ as1-))
-      (Disjunct (TagConjunct   ts2+ ts2-)
-                (RangeConjunct rs2+ rs2-)
-                (ProdConjunct  ps2+ ps2-)
-                (ArrowConjunct as2+ as2-)))
-     (Disjunct (TagConjunct   (set-union ts1+ ts2+) (set-union ts1- ts2-))
-               (RangeConjunct (set-union rs1+ rs2+) (set-union rs1- rs2-))
-               (ProdConjunct  (set-union ps1+ ps2+) (set-union ps1- ps2-))
-               (ArrowConjunct (set-union as1+ as2+) (set-union as1- as2-)))]))
+    [((DNF (list ts1+ ts1-)
+           (list rs1+ rs1-)
+           (list ps1+ ps1-)
+           (list as1+ as1-))
+      (DNF (list ts2+ ts2-)
+           (list rs2+ rs2-)
+           (list ps2+ ps2-)
+           (list as2+ as2-)))
+     (DNF (list (set-union ts1+ ts2+) (set-union ts1- ts2-))
+          (list (set-union rs1+ rs2+) (set-union rs1- rs2-))
+          (list (set-union ps1+ ps2+) (set-union ps1- ps2-))
+          (list (set-union as1+ as2+) (set-union as1- as2-)))]))
 
 
 
@@ -138,17 +135,17 @@
   (uninhabited-disjunct?
    (->DNF (And (set t1 (Not t2))))))
 
-(: uninhabited-disjunct? (-> Disjunct Boolean))
+(: uninhabited-disjunct? (-> DNF Boolean))
 (define (uninhabited-disjunct? d)
-  (and (uninhabitited-tag-conjunct? (Disjunct-tag-clauses d))
-       (uninhabitited-range-conjunct? (Disjunct-range-clauses d))
-       (uninhabitited-prod-conjunct? (Disjunct-prod-clauses d))
-       (uninhabitited-arrow-conjunct? (Disjunct-arrow-clauses d))))
+  (and (uninhabitited-tag-conjunct?   (DNF-tags d))
+       (uninhabitited-range-conjunct? (DNF-ranges d))
+       (uninhabitited-prod-conjunct?  (DNF-products d))
+       (uninhabitited-arrow-conjunct? (DNF-arrows d))))
 
 
-(: uninhabitited-tag-conjunct? (-> TagConjunct Boolean))
+(: uninhabitited-tag-conjunct? (-> (Tuple (Setof Tag) (Setof (Not Tag))) Boolean))
 (define (uninhabitited-tag-conjunct? c)
-  (match-define (TagConjunct pos neg) c)
+  (match-define (list pos neg) c)
   (cond
     [(> 1 (set-count pos)) #true]
     [(ormap (λ ([t : (Not Tag)]) (member (Not-t t) pos))
@@ -157,16 +154,17 @@
     [else #false]))
 
 
-(: uninhabitited-range-conjunct? (-> RangeConjunct Boolean))
+(: uninhabitited-range-conjunct? (-> (Tuple (Setof Range) (Setof (Not Range)))
+                                     Boolean))
 (define (uninhabitited-range-conjunct? c)
-  (match-define (RangeConjunct pos neg) c)
+  (match-define (list pos neg) c)
   ;; this should be sound but not complete... oh well
   (uninhabited-range? (reduce-range-with-negs (combine-ranges pos) neg)))
 
 
-(: uninhabitited-prod-conjunct? (-> ProdConjunct Boolean))
+(: uninhabitited-prod-conjunct? (-> (Tuple (Setof Prod) (Setof (Not Prod))) Boolean))
 (define (uninhabitited-prod-conjunct? c)
-  (match-define (ProdConjunct pos neg) c)
+  (match-define (list pos neg) c)
   (andmap (λ ([N* : (Setof (Not Prod))])
             (or (subtype? (And (map Prod-l pos))
                           (Or (map (λ ([p : (Not Prod)]) (Prod-l (Not-t p))) neg)))
@@ -176,7 +174,8 @@
           (powerset neg)))
 
 
-(: uninhabitited-arrow-conjunct? (-> ArrowConjunct Boolean))
+(: uninhabitited-arrow-conjunct? (-> (Tuple (Setof Arrow) (Setof (Not Arrow)))
+                                     Boolean))
 (define (uninhabitited-arrow-conjunct? c)
   (error 'todo-ArrowConjunct))
 

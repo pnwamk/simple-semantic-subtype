@@ -7,9 +7,12 @@
 
 (define-type (Setof T) (Listof T))
 
-(: set (All (T) (->* () #:rest T (Setof T))))
-(define (set . elems)
-  elems)
+(: set (All (T) (case-> (-> Null)
+                        (->* (T) #:rest T (Setof T)))))
+(define set
+  (case-lambda
+    [() null]
+    [elems elems]))
 
 (define set-count length)
 
