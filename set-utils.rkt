@@ -1,49 +1,53 @@
 #lang typed/racket/base
 
-(require (for-syntax typed/racket/base))
+(require racket/list
+         (for-syntax typed/racket/base))
 
 (provide (all-defined-out))
 
-(define-type (Setof T) (Immutable-HashTable T True))
+(define-type (Setof T) (Listof T))
 
 (: set (All (T) (->* () #:rest T (Setof T))))
 (define (set . elems)
-  (for/hash : (Setof T) ([elem (in-list elems)])
-    (values elem #t)))
+  elems)
 
-(define set-count hash-count)
+(define set-count length)
 
 (: set-add (All (T) (-> (Setof T) T (Setof T))))
 (define (set-add s elem)
-  (hash-set s elem #t))
+  (cond
+    [(member elem s) s]
+    [else (cons elem s)]))
 
 (: set-remove (All (T) (-> (Setof T) T (Setof T))))
 (define (set-remove s elem)
-  (hash-remove s elem))
+  (remove elem s))
 
 (: set-member? (All (T) (-> (Setof T) T Boolean)))
 (define (set-member? s elem)
-  (hash-ref s elem #f))
+  (and (member elem s) #t))
 
-(: set-union (All (T) (-> (Setof T) (Setof T) (Setof T))))
-(define (set-union s others)
-  (for/fold ([s : (Setof T) s])
-            ([elem (in-immutable-hash-keys others)])
-    (hash-set s elem #t)))
+(: set-union (All (T) (-> (Setof T) (Setof T) * (Setof T))))
+(define (set-union s . others)
+  (remove-duplicates (apply append s others)))
 
 (: set-diff (All (T) (-> (Setof T) (Setof T) (Setof T))))
 (define (set-diff s others)
-  (for/fold ([s : (Setof T) s])
-            ([elem (in-immutable-hash-keys others)])
-    (hash-remove s elem)))
+  (remove* others s))
 
 (: sets-overlap? (All (T) (-> (Setof T) (Setof T) Boolean)))
 (define (sets-overlap? s1 s2)
+  (and (ormap (λ (elem1) (member elem1 s2)) s1) #t))
+
+(: powerset (All (T) (-> (Setof T) (Setof (Setof T)))))
+(define (powerset s)
   (cond
-    [(> (set-count s1) (set-count s2)) (sets-overlap? s2 s1)]
-    [else
-     (for/or : Boolean ([elem (in-immutable-hash-keys s1)])
-       (hash-has-key? s2 elem))]))
+    [(pair? s)
+     (define x (car s))
+     (define psets (powerset (cdr s)))
+     (append psets (map (λ ([pset : (Setof T)]) (cons x pset))
+                        psets))]
+    [else (list s)]))
 
 
-(define-syntax in-set (make-rename-transformer #'in-immutable-hash-keys))
+(define-syntax in-set (make-rename-transformer #'in-list))
