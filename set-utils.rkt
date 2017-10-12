@@ -46,15 +46,22 @@
 (define (sets-overlap? s1 s2)
   (and (ormap (λ (elem1) (member elem1 s2)) s1) #t))
 
-(: powerset (All (T) (-> (Setof T) (Setof (Setof T)))))
-(define (powerset s)
+(: subsets (All (T) (-> (Setof T) (Setof (Setof T)))))
+(define (subsets s)
   (cond
     [(pair? s)
      (define x (car s))
-     (define psets (powerset (cdr s)))
+     (define psets (subsets (cdr s)))
      (append psets (map (λ ([pset : (Setof T)]) (cons x pset))
                         psets))]
     [else (list s)]))
 
+
+(: strict-subsets (All (T) (-> (Setof T) (Setof (Setof T)))))
+(define (strict-subsets s)
+  (remove s (subsets s)))
+
+(define exists ormap)
+(define forall andmap)
 
 (define-syntax in-set (make-rename-transformer #'in-list))
