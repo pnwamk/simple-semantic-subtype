@@ -14,7 +14,11 @@
     [() null]
     [elems elems]))
 
+
 (define set-count length)
+
+(: non-empty-set? (-> (Setof Any) Boolean))
+(define non-empty-set? pair?)
 
 (: set-add (All (T) (-> (Setof T) T (Setof T))))
 (define (set-add s elem)
