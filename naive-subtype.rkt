@@ -4,7 +4,8 @@
          racket/match
          "base-lang.rkt"
          "set-utils.rkt"
-         "tunit.rkt")
+         "tunit.rkt"
+         "subtype-test-suite.rkt")
 
 
 (define-type Literal (U Atom (Not Atom)))
@@ -16,6 +17,7 @@
 (define (->DNF t)
   (match t
     [(? Literal? l) l]
+    [(Not (Not inner-t)) (->DNF inner-t)]
     [(Not (And ts)) (DNF-Or-Map (λ ([t : Type]) (->DNF (Not t))) ts)]
     [(Not (Or ts)) (DNF-And-map (λ ([t : Type]) (->DNF (Not t))) ts)]
     [(Or ts) (DNF-Or-Map ->DNF ts)]
@@ -239,90 +241,5 @@
             N)))
 
 (module+ test
-  ;; basic tests
-  (check-true  (subtype? Int Univ))
-  (check-false (subtype? Univ Int))
-  (check-true  (subtype? Empty Int))
-  (check-true  (subtype? Empty Empty))
-  (check-false (subtype? Int Empty))
-  
-  ;; range tests
-  (check-true  (subtype? PosInt Int))
-  (check-true  (subtype? NegInt Int))
-  (check-false (subtype? Int PosInt))
-  (check-false (subtype? Int NegInt))
-  (check-false (subtype? PosInt NegInt))
-  (check-false (subtype? NegInt PosInt))
-  (check-true  (subtype? PosInt Nat))
-  (check-true  (subtype? PosInt Nat))
-  
-  ;; tests with unions
-  (check-true  (subtype? Int (Or (set Int Unit))))
-  (check-true  (subtype? Int (Or (set Int Bool))))
-  (check-true  (subtype? Bool (Or (set Int Bool))))
-  (check-true  (subtype? Empty (Or (set Int Bool))))
-  (check-true  (subtype? Bool (Or (set Empty Bool))))
-  (check-false (subtype? (Or (set Int Unit)) Int))
-  (check-false (subtype? Bool Int))
-  (check-false (subtype? Int Bool))
-  (check-false  (subtype? (Or (set Int Bool)) Empty))
-  
-  ;; tests with intersections
-  (check-true  (subtype? (And (set Int Unit)) Int))
-  (check-true  (subtype? (And (set Int Unit)) Int))
-  (check-false (subtype? Int (And (set Int Unit))))
-  (check-true  (subtype? (And (set (Or (set Int Unit))
-                                   (Or (set Int Bool))))
-                         Int))
-  (check-true  (subtype? Int
-                         (And (set (Or (set Int Unit))
-                                   (Or (set Int Bool))))))
-  
-  ;; tests with products
-  (check-true  (subtype? (Prod Int Int) (Prod Univ Univ)))
-  (check-true  (subtype? (Prod Empty Int) (Prod Int Int)))
-  (check-true  (subtype? (Prod Int Empty) (Prod Int Int)))
-  (check-true  (subtype? (Prod Int Int) (Prod Int Univ)))
-  (check-true  (subtype? (Prod Int Int) (Prod Univ Int)))
-  (check-true  (subtype? (Prod Int Int) (Prod Int Int)))
-  (check-false (subtype? (Prod Int Int) (Prod Empty Int)))
-  (check-false (subtype? (Prod Int Int) (Prod Int Empty)))
-  (check-false (subtype? (Prod Int Int) (Prod Empty Empty)))
-  (check-false (subtype? (Prod Int Int) (Prod Bool Int)))
-  (check-false (subtype? (Prod Int Int) (Prod Int Bool)))
-  (check-true  (subtype? (Prod Int Int) (Prod (Or (set Int Bool)) Int)))
-  (check-true  (subtype? (Prod Int Int) (Prod Int (Or (set Int Bool)))))
-  (check-false (subtype? (Prod (Or (set Int Bool)) Int)
-                         (Prod Int Int)))
-  (check-false (subtype? (Prod Int (Or (set Int Bool)))
-                         (Prod Int Int)))
-  (check-false (subtype? (Prod (Or (set Int Bool))
-                               (Or (set Int Bool)))
-                         (Or (set (Prod Int Bool)
-                                  (Prod Bool Int)))))
-  (check-true (subtype? (Or (set (Prod Int Bool)
-                                 (Prod Bool Int)))
-                        (Prod (Or (set Int Bool))
-                              (Or (set Int Bool)))))
-  (check-true (subtype? (Prod (Prod (Or (set Int Bool))
-                                    (Or (set Int Bool)))
-                              (Prod (Or (set Int Bool))
-                                    (Or (set Int Bool))))
-                        (Prod (Or (set (Prod Int Int)
-                                       (Prod Bool Int)
-                                       (Prod Int Bool)
-                                       (Prod Bool Bool)))
-                              (Or (set (Prod Int Int)
-                                       (Prod Bool Int)
-                                       (Prod Int Bool)
-                                       (Prod Bool Bool))))))
-  ;(subtype? (Prod Int Int) (Prod Univ Int))
-  ;(subtype? (Prod Int Int) (Prod Int Univ))
-  ;(subtype? (Prod Int Int) (Prod Int Int))
-  ;(subtype? (Prod Int Int) (Prod Empty Int))
-  ;(subtype? (Prod Int Int) (Prod Int Empty))
-  ;(subtype? (Prod Int Int) (Prod Empty Empty))
-
-
-  )
+  (run-subtype-tests subtype?))
 

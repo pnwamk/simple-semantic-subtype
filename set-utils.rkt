@@ -16,6 +16,7 @@
 
 
 (define set-count length)
+(define set-empty? null?)
 
 (: non-empty-set? (-> (Setof Any) Boolean))
 (define non-empty-set? pair?)
