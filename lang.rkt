@@ -31,32 +31,54 @@
 (define-type Literal (U Atom (Not Atom)))
 (define-predicate literal? Literal)
 
-(define-type Clause (U Literal
-                       (And (U Tag (Not Tag)))
-                       (And (U Range (Not Range)))
-                       (And (U Prod (Not Prod)))
-                       (And (U Arrow (Not Arrow)))))
+(define-type Clause (U Literal (And Literal)))
 (define-type DNF (U Clause (Or Clause)))
 
 (: ->DNF (-> Type DNF))
 (define (->DNF t)
   (match t
     [(? literal? l) l]
-    [(Not (And ts)) (error 'todo)]
-    [(Not (Or ts)) (error 'todo)]
-    [(Or ts) (let loop ([todo : (Listof Type) ts]
-                        [result : (Listof Clause) '()])
-               (match todo
-                 [(list) (if (= 1 (length result))
-                             (first result)
-                             (Or result))]
-                 [(cons (app ->DNF d) rst)
-                  (cond
-                    [(Or? d) (loop rst (append (Or-elems d) result))]
-                    [else (loop rst (set-add result d))])]))]
-    [(And ts) (error 'todo)]))
+    [(Not (And ts)) (Or-DNF-fold (λ ([t : Type]) (->DNF (Not t))) ts)]
+    [(Not (Or ts)) (And-DNF-fold (λ ([t : Type]) (->DNF (Not t))) ts)]
+    [(Or ts) (Or-DNF-fold ->DNF ts)]
+    [(And ts) (And-DNF-fold ->DNF ts)]))
 
+(: And-DNF-fold (-> (-> Type DNF) (Listof Type) DNF))
+(define (And-DNF-fold f ts)
+  (let loop ([todo : (Listof Type) ts]
+             [ors : (Listof (Or Clause)) '()]
+             [result : (Listof Literal) '()])
+    (match todo
+      [(list)
+       (match ors
+         [(list) (if (= 1 (length result))
+                     (car result)
+                     (And result))]
+         [(cons (Or or-ts) rst)
+          (define and-ts (append rst result))
+          (->DNF (Or (map (λ ([t : Type]) (And (set-add and-ts t)))
+                          or-ts)))])]
+      [(cons (app f t) rst)
+       (match t
+         [(? literal? l)
+          (loop rst ors (set-add result l))]
+         [(And ls)
+          (loop rst ors (append ls result))]
+         [(? Or? d)
+          (loop rst (set-add ors d) result)])])))
 
+(: Or-DNF-fold (-> (-> Type DNF) (Listof Type) DNF))
+(define (Or-DNF-fold f ts)
+  (let loop ([todo : (Listof Type) ts]
+             [result : (Listof Clause) '()])
+    (match todo
+      [(list) (if (= 1 (length result))
+                  (first result)
+                  (Or result))]
+      [(cons (app f d) rst)
+       (cond
+         [(Or? d) (loop rst (append (Or-elems d) result))]
+         [else (loop rst (set-add result d))])])))
 
 (: subtype? (-> Type Type Boolean))
 (define (subtype? t1 t2)
@@ -154,13 +176,13 @@
 
 
 
-(subtype? (Prod Int Int) (Prod Univ Univ))
-(subtype? (Prod Int Int) (Prod Univ Int))
-(subtype? (Prod Int Int) (Prod Int Univ))
-(subtype? (Prod Int Int) (Prod Int Int))
-(subtype? (Prod Int Int) (Prod Empty Int))
-(subtype? (Prod Int Int) (Prod Int Empty))
-(subtype? (Prod Int Int) (Prod Empty Empty))
+;(subtype? (Prod Int Int) (Prod Univ Univ))
+;(subtype? (Prod Int Int) (Prod Univ Int))
+;(subtype? (Prod Int Int) (Prod Int Univ))
+;(subtype? (Prod Int Int) (Prod Int Int))
+;(subtype? (Prod Int Int) (Prod Empty Int))
+;(subtype? (Prod Int Int) (Prod Int Empty))
+;(subtype? (Prod Int Int) (Prod Empty Empty))
 
 
 
