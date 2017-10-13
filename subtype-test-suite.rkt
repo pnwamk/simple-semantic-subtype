@@ -21,14 +21,21 @@
   (check-false (subtype? Int Empty))
   
   ;; range tests
+  (check-true  (subtype? Int8 Int8))
   (check-true  (subtype? PosInt Int))
   (check-true  (subtype? NegInt Int))
   (check-false (subtype? Int PosInt))
   (check-false (subtype? Int NegInt))
   (check-false (subtype? PosInt NegInt))
   (check-false (subtype? NegInt PosInt))
+  (check-false (subtype? Int16 Int8))
+  (check-false (subtype? Int32 Int8))
+  (check-false (subtype? Int32 Int16))
   (check-true  (subtype? PosInt Nat))
   (check-true  (subtype? PosInt Nat))
+  (check-true  (subtype? UInt8 UInt16))
+  (check-true  (subtype? UInt8 Int16))
+  (check-true  (subtype? Int16 Int32))
   
   ;; tests with unions
   (check-true  (subtype? (Or (set NegInt PosInt)) Int))
@@ -43,9 +50,18 @@
   (check-false (subtype? (Or (set Int Unit)) Int))
   (check-false (subtype? Bool Int))
   (check-false (subtype? Int Bool))
+  (check-false  (subtype? Bool (Or (set Empty 'True Int32))))
   (check-false (subtype? (Or (set Int Bool)) Empty))
   
   ;; tests with intersections
+  (check-true  (subtype? (And (set Int8 Int16)) Int32))
+  (check-true  (subtype? (And (set Int32 Int16)) Int32))
+  (check-true  (subtype? (And (set Int8 Int16)) (And (set Int8 Int32))))
+  (check-true  (subtype? (And (set UInt8 UInt16)) (And (set Int16 Int32))))
+  (check-true  (subtype? (And (set UInt8 Int16)) (Or (set Int16 Int32))))
+  (check-true  (subtype? Int16 (And (set UInt8 Int16))))
+  (check-false (subtype? Int32 (And (set UInt8 Int16))))
+  (check-false (subtype? (Or (set Int16 Int32)) (And (set UInt8 Int16))))
   (check-true  (subtype? (And (set Int Unit)) Int))
   (check-true  (subtype? (And (set Int Unit (Not Univ))) Int))
   (check-true  (subtype? (And (set Int Bool (Not Bool))) Int))

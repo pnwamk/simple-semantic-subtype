@@ -199,7 +199,12 @@
         [else
          (cond
            [(>= neg-upper upper) (values lower (sub1 neg-lower))]
-           [else (values +inf.0 -inf.0)])])))
+           ;; in this last case, it would be more complete to reason about
+           ;; dividing the range into two ranges (i.e. excluding neg), but
+           ;; currently we just leave it unchanged as this is sound (TODO
+           ;; make also complete -- i.e. keep track of the list of ranges
+           ;; and then at the end check if all are uninhabited)
+           [else (values lower upper)])])))
   (Range new-lower new-upper))
 
 

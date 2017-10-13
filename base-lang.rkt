@@ -35,9 +35,15 @@
 (define UnivArrow (Arrow Empty Univ))
 (define Int (Range -inf.0 +inf.0))
 (define Nat (Range 0 +inf.0))
-(define Byte (Range 0 255))
 (define PosInt (Range 1 +inf.0))
 (define NegInt (Range -inf.0 -1))
+(define UInt8 (Range 0 255))
+(define UInt16 (Range 0 65535))
+(define UInt32 (Range 0 4294967295))
+(define Int8 (Range -128 127))
+(define Int16 (Range -32768 32767))
+(define Int32 (Range -2147483648 2147483647))
+
 
 (define UnivTag (Not (Or (set UnivProd UnivArrow Int))))
 
