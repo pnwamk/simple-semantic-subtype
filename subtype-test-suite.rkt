@@ -142,3 +142,151 @@
                           (And (set (Arrow NegInt NegInt)
                                     (Arrow Nat    Nat)))))
   (display-test-results))
+
+
+
+
+
+
+;; a disjoint Union of size 16
+(define SomeBase (Or (set 'True
+                          'False
+                          'String
+                          'Symbol
+                          Int8
+                          Int16
+                          (Arrow Int8 Int8)
+                          (Arrow Int16 Int16))))
+
+;; the powerset of the elements of SomeBase
+(define 2^SomeBase : (Listof (Or Type))
+  (map (inst Or Type) (subsets (Or-ts SomeBase))))
+
+;; The supertype of any product of SomeBase types
+(define UnivBaseProd (Prod SomeBase SomeBase))
+
+;; the cartesian product of SomeBase
+;; i.e. all products t1 × t2 where t1,t2 ∈ SomeBase
+(define SomeBase×SomeBase
+  (for*/list : (Setof Type)
+    ([t1 (in-set (Or-ts SomeBase))]
+     [t2 (in-set (Or-ts SomeBase))])
+    (Prod t1 t2)))
+
+;; the cartesian product of SomeBase
+;; i.e. all products t1 × t2 where t1,t2 ∈ SomeBase
+(define SomeBase→SomeBase
+  (for*/list : (Setof Type)
+    ([t1 (in-set (Or-ts SomeBase))]
+     [t2 (in-set (Or-ts SomeBase))])
+    (Prod t1 t2)))
+
+(define misc-prods (set UnivBaseProd
+                        (Prod 'Symbol (Or (set Int8 'Symbol)))
+                        (Prod (Or (set 'Symbol Bool)) Int8)
+                        (Prod (Or (set 'Symbol Int16))
+                              Int8)
+                        (Prod Int8
+                              (Or (set 'Symbol Int16)))
+                        (Prod (Arrow Int8 Int8)
+                              (Arrow Int8 Int8))))
+(define 2^misc-prods (map (inst Or Type) (subsets misc-prods)))
+
+(define misc-arrows (set UnivArrow
+                         (Arrow 'Symbol (Or (set Int8 'Symbol)))
+                         (Arrow (Or (set 'Symbol Bool)) Int8)
+                         (Arrow (Or (set 'Symbol Int16))
+                                Int8)
+                         (Arrow Int8
+                                (Or (set 'Symbol Int16)))
+                         (Arrow (Arrow Int8 Int8)
+                                (Arrow Int8 Int8))))
+(define 2^misc-arrows (map (inst Or Type) (subsets misc-prods)))
+
+
+(: ->nat (-> Boolean Natural))
+(define (->nat b) (if b 1 0))
+
+(: run-subtype-benchmark (-> String (-> Type Type Boolean) Void))
+(define (run-subtype-benchmark name subtype?)
+  (collect-garbage)
+  (collect-garbage)
+  (collect-garbage)
+  (printf "~a: simple unions (size <= 8)\n" name)
+  (printf "[nat result ~a]\n"
+          (time (for*/sum : Natural
+                  ([disj1 (in-list 2^SomeBase)]
+                   [disj2 (in-list 2^SomeBase)])
+                  (+ (->nat (subtype? disj1 disj2))
+                     (->nat (subtype? disj2 disj1))))))
+
+  (collect-garbage)
+  (collect-garbage)
+  (collect-garbage)
+  (printf "~a: products of simple types\n" name)
+  (printf "[nat result ~a]\n"
+          (time (for*/sum : Natural
+                  ([prod1 (in-list SomeBase×SomeBase)]
+                   [prod2 (in-list SomeBase×SomeBase)])
+                  (+ (->nat (subtype? prod1 prod2))
+                     (->nat (subtype? prod2 prod1))))))
+
+  (collect-garbage)
+  (collect-garbage)
+  (collect-garbage)
+  (printf "~a: products of unions (size <= 8)\n" name)
+  (printf "[nat result ~a]\n"
+          (time (for*/sum : Natural
+                  ([t1 (in-list 2^SomeBase)]
+                   [t2 (in-list 2^SomeBase)])
+                  (+ (->nat (subtype? (Prod t1 t2) (Prod t2 t1)))
+                     (->nat (subtype? (Prod t1 t2) (Prod t2 t1)))
+                     (->nat (subtype? (Prod t1 t2) UnivBaseProd))
+                     (->nat (subtype? UnivBaseProd (Prod t1 t2)))))))
+
+  (collect-garbage)
+  (collect-garbage)
+  (collect-garbage)
+  (printf "~a: unions of products of unions (misc)\n" name)
+  (printf "[nat result ~a]\n"
+          (time (for*/sum : Natural
+                  ([t1 (in-list 2^misc-prods)]
+                   [t2 (in-list 2^misc-prods)])
+                  (+ (->nat (subtype? t1 t2))
+                     (->nat (subtype? t2 t1))))))
+
+  (collect-garbage)
+  (collect-garbage)
+  (collect-garbage)
+  (printf "~a: arrows of simple types\n" name)
+  (printf "[nat result ~a]\n"
+          (time (for*/sum : Natural
+                  ([arrow1 (in-list SomeBase→SomeBase)]
+                   [arrow2 (in-list SomeBase→SomeBase)])
+                  (+ (->nat (subtype? arrow1 arrow2))
+                     (->nat (subtype? arrow2 arrow1))))))
+
+  (collect-garbage)
+  (collect-garbage)
+  (collect-garbage)
+  (printf "~a: arrows of unions (size <= 8)\n" name)
+  (printf "[nat result ~a]\n"
+          (time (for*/sum : Natural
+                  ([t1 (in-list 2^SomeBase)]
+                   [t2 (in-list 2^SomeBase)])
+                  (+ (->nat (subtype? (Arrow t1 t2) (Arrow t2 t1)))
+                     (->nat (subtype? (Arrow t1 t2) (Arrow t2 t1)))
+                     (->nat (subtype? (Arrow t1 t2) UnivArrow))
+                     (->nat (subtype? UnivArrow (Arrow t1 t2)))))))
+
+  (collect-garbage)
+  (collect-garbage)
+  (collect-garbage)
+  (printf "~a: unions of Arrows of unions (misc)\n" name)
+  (printf "[nat result ~a]\n"
+          (time (for*/sum : Natural
+                  ([t1 (in-list 2^misc-arrows)]
+                   [t2 (in-list 2^misc-arrows)])
+                  (+ (->nat (subtype? t1 t2))
+                     (->nat (subtype? t2 t1))))))
+  )
