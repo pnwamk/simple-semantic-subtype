@@ -247,5 +247,5 @@
 
 (module+ test
   (run-subtype-tests subtype?)
-  (run-subtype-benchmark "naive" subtype?))
+  #;(run-subtype-benchmark "naive" subtype?))
 
