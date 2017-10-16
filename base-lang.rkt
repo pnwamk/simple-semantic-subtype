@@ -60,3 +60,5 @@
 (define-predicate Not-Prod? (Not Prod))
 (define-predicate Not-Arrow? (Not Arrow))
 
+(: Diff (-> Type Type Type))
+(define (Diff t1 t2) (And (set t1 (Not t2))))
