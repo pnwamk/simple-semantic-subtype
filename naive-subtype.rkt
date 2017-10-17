@@ -2,7 +2,7 @@
 
 (require racket/list
          racket/match
-         "base-lang.rkt"
+         "simple-lang.rkt"
          "set-utils.rkt"
          "tunit.rkt"
          "subtype-test-suite.rkt")
@@ -246,8 +246,8 @@
             N)))
 
 (module+ test
-  (run-subtype-tests subtype?))
+  (run-subtype-tests ->Type subtype?))
 
-(module+ benchmark
-  (run-subtype-benchmark "naive" subtype?))
+;(module+ benchmark
+;  (run-subtype-benchmark "naive" subtype?))
 

@@ -1,6 +1,8 @@
 #lang typed/racket/base
 
-(require "set-utils.rkt")
+(require racket/match
+         "grammar.rkt"
+         "set-utils.rkt")
 
 (provide (all-defined-out))
 
@@ -49,6 +51,9 @@
 
 (define Bool (Or (set 'True 'False)))
 (define Unit 'Unit)
+(define Str 'Str)
+(define T 'T)
+(define F 'F)
 
 (define Tag? symbol?)
 
@@ -62,3 +67,34 @@
 
 (: Diff (-> Type Type Type))
 (define (Diff t1 t2) (And (set t1 (Not t2))))
+
+
+(: ->Type (-> TypeSexp Type))
+(define (->Type sexp)
+  (match sexp
+    ['Univ Univ]
+    ['Empty Empty]
+    ['Unit Unit]
+    ['Bool Bool]
+    ['Str Str]
+    ['UnivProd UnivProd]
+    ['UnivArrow UnivArrow]
+    ['Int Int]
+    ['T T]
+    ['F F]
+    ['Nat Nat]
+    ['PosInt PosInt]
+    ['NegInt NegInt]
+    ['UInt8 UInt8]
+    ['UInt16 UInt16]
+    ['UInt32 UInt32]
+    ['Int8 Int8]
+    ['Int16 Int16]
+    ['Int32 Int32]
+    [`(Range ,lower ,upper) (Range lower upper)]
+    [`(Prod ,l ,r) (Prod (->Type l) (->Type r))]
+    [`(Arrow ,dom ,rng) (Arrow (->Type dom) (->Type rng))]
+    [`(Or . ,ts) (Or (map ->Type ts))]
+    [`(And . ,ts) (And (map ->Type ts))]
+    [`(Not ,t) (Not (->Type t))]))
+

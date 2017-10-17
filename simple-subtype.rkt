@@ -2,7 +2,7 @@
 
 (require racket/list
          racket/match
-         "base-lang.rkt"
+         "simple-lang.rkt"
          "set-utils.rkt"
          "tunit.rkt"
          "subtype-test-suite.rkt")
@@ -252,10 +252,10 @@
     [_ #t]))
 
 (module+ test
-  (check-false (subtype? (Arrow Int Univ) (Arrow Int Int)))
-  ;(run-subtype-tests subtype?)
+  ;(check-false (subtype? (Arrow Int Univ) (Arrow Int Int)))
+  (run-subtype-tests ->Type subtype?)
   )
 
-(module+ benchmark
-  (run-subtype-benchmark "naive" subtype?))
+;(module+ benchmark
+;  (run-subtype-benchmark "simple" subtype?))
 
