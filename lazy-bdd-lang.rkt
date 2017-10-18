@@ -143,24 +143,23 @@
 
 (: -or (-> BDD BDD BDD))
 (define (-or b1 b2)
-  (error 'TODO)
-  #;(match* (b1 b2)
+  (match* (b1 b2)
     [((? Top?) _) top]
     [(_ (? Top?)) top]
     [((? Bot?) b) b]
     [(b (? Bot?)) b]
-    [((Node a1 _ _) (Node a2 _ _))
+    [((Node a1 _ _ _) (Node a2 _ _ _))
      (cond
        [(Atom<? a1 a2)
-        (match-define (Node _ l1 r1) b1)
-        (Node a1 (-or l1 b2) (-or r1 b2))]
+        (match-define (Node _ l1 u1 r1) b1)
+        (Node a1 l1 (-or u1 b2) r1)]
        [(Atom<? a2 a1)
-        (match-define (Node _ l2 r2) b2)
-        (Node a2 (-or b1 l2) (-or b1 r2))]
+        (match-define (Node _ l2 u2 r2) b2)
+        (Node a2 l2 (-or b1 u2) r2)]
        [else
-        (match-define (Node _ l1 r1) b1)
-        (match-define (Node _ l2 r2) b2)
-        (Node a1 (-or l1 l2) (-or r1 r2))])]))
+        (match-define (Node _ l1 u1 r1) b1)
+        (match-define (Node _ l2 u2 r2) b2)
+        (Node a1 (-or l1 l2) (-or u1 u2) (-or r1 r2))])]))
 
 (: -not (-> BDD BDD))
 (define (-not b) (-diff top b))
