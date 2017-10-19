@@ -242,6 +242,21 @@
                  (-diff u1 u2)
                  (-diff r1 r2))])])))
 
+(: And (-> Type Type Type))
+(define (And t1 t2)
+  (error 'todo))
+
+(: Or (-> Type Type Type))
+(define (Or t1 t2)
+  (error 'todo))
+
+(: Diff (-> Type Type Type))
+(define (Diff t1 t2)
+  (error 'todo))
+
+(: Not (-> Type Type))
+(define (Not t)
+  (error 'todo))
 
 ;(: ->Type (-> TypeSexp Type))
 ;(define (->Type sexp)
