@@ -8,11 +8,17 @@
 
 (define-syntax def-struct
   (syntax-rules ()
-      [(_ name (fld ...))
-       (struct name (fld ...) #:transparent)]
+    [(_ name (fld ...))
+     (struct name (fld ...) #:transparent)]
     [(_ #:∀ (poly-ids ...) name (fld ...))
-       (struct (poly-ids ...) name (fld ...) #:transparent)]))
+     (struct (poly-ids ...) name (fld ...) #:transparent)]))
 
+(define top 'Top)
+(define bot 'Bot)
+(define-type Top 'Top)
+(define-predicate Top? Top)
+(define-type Bot 'Bot)
+(define-predicate Bot? Bot)
 
 (def-struct Tag ([id : Fixnum]))
 (def-struct Range ([lower : Real]
@@ -24,18 +30,20 @@
 
 (define-type Atom (U Tag Range Prod Arrow))
 
+(: -atom (-> Atom BDD))
+(define (-atom t) (Node t top bot bot))
+
 ; interp: (Node a l u r) == if a then (l or u) else (r or u)
 (def-struct Node ([atom : Atom]
                   [lchild : BDD]
                   [union : BDD]
                   [rchild : BDD]))
-
-(define top 'Top)
-(define bot 'Bot)
-(define-type Top 'Top)
-(define-predicate Top? Top)
-(define-type Bot 'Bot)
-(define-predicate Bot? Bot)
+(: -node (-> Atom BDD BDD BDD BDD))
+(define (-node a l u r)
+  (cond
+    [(Top? u) top]
+    [(equal? l r) (-or l u)]
+    [else (Node a l u r)]))
 
 (define-type BDD (U Top Bot Node))
 
@@ -115,8 +123,6 @@
                           [_ #f])]))
 
 
-(: -atom (-> Atom BDD))
-(define (-atom t) (Node t top bot bot))
 
 (: -and (-> BDD BDD BDD))
 (define (-and b1 b2)
@@ -129,17 +135,17 @@
      (cond
        [(Atom<? a1 a2)
         (match-define (Node _ l1 u1 r1) b1)
-        (Node a1 (-and l1 b2) (-and u1 b2) (-and r1 b2))]
+        (-node a1 (-and l1 b2) (-and u1 b2) (-and r1 b2))]
        [(Atom<? a2 a1)
         (match-define (Node _ l2 u2 r2) b2)
-        (Node a2 (-and b1 l2) (-and b1 u2) (-and b1 r2))]
+        (-node a2 (-and b1 l2) (-and b1 u2) (-and b1 r2))]
        [else
         (match-define (Node _ l1 u1 r1) b1)
         (match-define (Node _ l2 u2 r2) b2)
-        (Node a1
-              (-and (-or l1 u1) (-or l2 u2))
-              bot
-              (-and (-or r1 u1) (-or r2 u2)))])]))
+        (-node a1
+               (-and (-or l1 u1) (-or l2 u2))
+               bot
+               (-and (-or r1 u1) (-or r2 u2)))])]))
 
 (: -or (-> BDD BDD BDD))
 (define (-or b1 b2)
@@ -152,39 +158,52 @@
      (cond
        [(Atom<? a1 a2)
         (match-define (Node _ l1 u1 r1) b1)
-        (Node a1 l1 (-or u1 b2) r1)]
+        (-node a1 l1 (-or u1 b2) r1)]
        [(Atom<? a2 a1)
         (match-define (Node _ l2 u2 r2) b2)
-        (Node a2 l2 (-or b1 u2) r2)]
+        (-node a2 l2 (-or b1 u2) r2)]
        [else
         (match-define (Node _ l1 u1 r1) b1)
         (match-define (Node _ l2 u2 r2) b2)
-        (Node a1 (-or l1 l2) (-or u1 u2) (-or r1 r2))])]))
+        (-node a1
+               (-or l1 l2)
+               (-or u1 u2)
+               (-or r1 r2))])]))
 
 (: -not (-> BDD BDD))
 (define (-not b) (-diff top b))
 
 (: -diff (-> BDD BDD BDD))
 (define (-diff b1 b2)
-  (error 'TODO)
-  #;(match* (b1 b2)
+  (match* (b1 b2)
     [(_ (? Top?)) bot]
     [((? Bot?) _) bot]
     [(b (? Bot?)) b]
-    [((? Top?) (Node a l r))
-     (Node a (-diff top l) (-diff top r))]
-    [((Node a1 _ _) (Node a2 _ _))
+    [((? Top?) (Node a l u r))
+     ;; I _think_ this is right:
+     (-node a (-diff top l) (-diff top l) (-diff top r))]
+    [((Node a1 _ _ _) (Node a2 _ _ _))
      (cond
        [(Atom<? a1 a2)
-        (match-define (Node _ l1 r1) b1)
-        (Node a1 (-diff l1 b2) (-diff r1 b2))]
+        (match-define (Node _ l1 u1 r1) b1)
+        (match-define (Node _ l2 u2 r2) b2)
+        (-node a1
+               (-diff (-or l1 u1) (-or l2 u2))
+               bot
+               (-diff (-or r1 u1) (-or r2 u2)))]
        [(Atom<? a2 a1)
-        (match-define (Node _ l2 r2) b2)
-        (Node a2 (-diff b1 l2) (-diff b1 r2))]
+        (match-define (Node _ l2 u2 r2) b2)
+        (-node a2
+               (-diff b1 (-or l2 u2))
+               bot
+               (-diff b1 (-or r2 u2)))]
        [else
-        (match-define (Node _ l1 r1) b1)
-        (match-define (Node _ l2 r2) b2)
-        (Node a1 (-diff l1 l2) (-diff r1 r2))])]))
+        (match-define (Node _ l1 u1 r1) b1)
+        (match-define (Node _ l2 u2 r2) b2)
+        (-node a1
+               (-diff l1 l2)
+               (-diff u1 u2)
+               (-diff r1 r2))])]))
 
 
 (: ->Type (-> TypeSexp BDD))
