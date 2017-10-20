@@ -227,7 +227,8 @@
       [((? Bot?) _) bot]
       [(b (? Bot?)) b]
       [((? Top?) (Node a l u r))
-       ;; is this right??? TODO
+       ;; this seems right based on non-lazy BDDs
+       ;; and it seems to do the right thing...
        (-node a
               (-diff top (-or l u))
               bot
@@ -235,12 +236,17 @@
       [((Node a1 _ _ _) (Node a2 _ _ _))
        (cond
          [(Atom<? a1 a2)
+          ;; the paper says for this case:
+          ;; a₁ ? (l₁ ∨ u₁) \ (l₂ ∨ u₂) : ⊥ : (r₁ ∨ u₁) \ (r₂ ∨ u₂)
+          ;; but that seems wrong, since it entirely throws away a₂
+          ;; this seems like a sensible choice based on the a₂ <  a₁
+          ;; case and on what non-lazy BDDs do in this case:
+          ;; a₁ ? (l₁ ∨  u₁) \ b₂ : ⊥ : (r₁ ∨  u₁) \ b₂
           (match-define (Node _ l1 u1 r1) b1)
-          (match-define (Node _ l2 u2 r2) b2)
           (-node a1
-                 (-diff (-or l1 u1) (-or l2 u2))
+                 (-diff (-or l1 u1) b2)
                  bot
-                 (-diff (-or r1 u1) (-or r2 u2)))]
+                 (-diff (-or r1 u1) b2))]
          [(Atom<? a2 a1)
           (match-define (Node _ l2 u2 r2) b2)
           (-node a2
@@ -345,4 +351,10 @@
   (Diff t1 t2))
 
 
-(subtype? T F) ;; ???????
+;; These all seem to have reasonable results now:
+;; (Diff T T) ==>
+;;    (Type bot bot bot bot)
+;; (Diff F T) ==>
+;;   (Type (Node T) bot bot (Node T top bot bot))
+;; (Not Bool) ==>
+;;   (Type (Node T bot bot (Node F bot bot top)) top top top))
