@@ -2,7 +2,8 @@
 
 (require racket/match
          (only-in racket/unsafe/ops unsafe-fx<)
-         "grammar.rkt")
+         "grammar.rkt"
+         "tunit.rkt")
 
 (provide (all-defined-out))
 
@@ -46,13 +47,10 @@
                       (BDD (∩ X Atom))
                       (BDD (∩ X Atom)))))
 (define (-node a l u r)
-  (define result
-    (cond
-      [(Top? u) top]
-      [(equal? l r) ((inst -or X) l u)]
-      [else ((inst Node X) a l u r)]))
-  (eprintf "-node ~a ~a ~a ~a\n ==> ~a\n" a l u r result)
-  result)
+  (cond
+    [(Top? u) top]
+    [(equal? l r) ((inst -or X) l u)]
+    [else ((inst Node X) a l u r)]))
 
 (define-type (BDD X) (U Top Bot (Node X)))
 
@@ -88,70 +86,63 @@
 (define (-arrow dom rng)
   (Type bot bot bot (-atom (Arrow dom rng))))
 
-(define UnivProd (-prod Univ Univ))
-(define UnivArrow (-arrow Empty Univ))
-(define Int (-range -inf.0 +inf.0))
-(define Nat (-range 0 +inf.0))
-(define PosInt (-range 1 +inf.0))
-(define NegInt (-range -inf.0 -1))
-(define UInt8 (-range 0 255))
-(define UInt16 (-range 0 65535))
-(define UInt32 (-range 0 4294967295))
-(define Int8 (-range -128 127))
-(define Int16 (-range -32768 32767))
-(define Int32 (-range -2147483648 2147483647))
 
 (: Atom<? (-> Atom Atom Boolean))
 (define (Atom<? a1 a2)
   (match a1
-    [(Tag n1) (match a2
-                [(Tag n2) (unsafe-fx< n1 n2)]
-                [_ #t])]
-    [(Range l1 u1) (match a2
-                     [(? Tag?) #f]
-                     [(Range l2 u2)
-                      (cond
-                        [(< l1 l2) #t]
-                        [(> l1 l2) #f]
-                        [(< u1 u2) #t]
-                        [else #f])]
-                     [_ #t])]
-    [(Prod l1 r1) (match a2
-                    [(? Tag?) #f]
-                    [(? Range?) #f]
-                    [(Prod l2 r2)
-                     (cond
-                       [(Type<? l1 l2) #t]
-                       [(Type<? l2 l1) #f]
-                       [(Type<? r1 r2) #t]
-                       [else #f])]
-                    [_ #t])]
-    [(Arrow d1 r1) (match a2
-                     [(Arrow d2 r2)
-                      (cond
-                        [(Type<? d1 d2) #t]
-                        [(Type<? d2 d1) #f]
-                        [(Type<? r1 r2) #t]
-                        [else #f])]
-                     [_ #f])]))
+    [(Tag n1)
+     (match a2
+       [(Tag n2) (unsafe-fx< n1 n2)]
+       [_ #t])]
+    [(Range l1 u1)
+     (match a2
+       [(? Tag?) #f]
+       [(Range l2 u2)
+        (cond
+          [(< l1 l2) #t]
+          [(> l1 l2) #f]
+          [(< u1 u2) #t]
+          [else #f])]
+       [_ #t])]
+    [(Prod l1 r1)
+     (match a2
+       [(? Tag?) #f]
+       [(? Range?) #f]
+       [(Prod l2 r2)
+        (cond
+          [(Type<? l1 l2) #t]
+          [(Type<? l2 l1) #f]
+          [(Type<? r1 r2) #t]
+          [else #f])]
+       [_ #t])]
+    [(Arrow d1 r1)
+     (match a2
+       [(Arrow d2 r2)
+        (cond
+          [(Type<? d1 d2) #t]
+          [(Type<? d2 d1) #f]
+          [(Type<? r1 r2) #t]
+          [else #f])]
+       [_ #f])]))
 
 (: BDD<? (All (X) (-> (BDD X) (BDD X) Boolean)))
 (define (BDD<? b1 b2)
   (match b1
     [(? Top?) (not (Top? b2))]
     [(? Bot?) (Node? b2)]
-    [(Node a1 l1 u1 r1) (match b2
-                          [(Node a2 l2 u2 r2)
-                           (cond
-                             [(Atom<? a1 a2) #t]
-                             [(Atom<? a2 a1) #f]
-                             [(BDD<? l1 l2) #t]
-                             [(BDD<? l2 l1) #f]
-                             [(BDD<? u1 u2) #t]
-                             [(BDD<? u2 u1) #f]
-                             [(BDD<? r1 r2) #t]
-                             [else #f])]
-                          [_ #f])]))
+    [(Node a1 l1 u1 r1)
+     (match b2
+       [(Node a2 l2 u2 r2)
+        (cond
+          [(Atom<? a1 a2) #t]
+          [(Atom<? a2 a1) #f]
+          [(BDD<? l1 l2) #t]
+          [(BDD<? l2 l1) #f]
+          [(BDD<? u1 u2) #t]
+          [(BDD<? u2 u1) #f]
+          [(BDD<? r1 r2) #t]
+          [else #f])]
+       [_ #f])]))
 
 
 (: Type<? (-> Type Type Boolean))
@@ -171,103 +162,98 @@
 
 (: -and (All (X) (-> (BDD X) (BDD X) (BDD X))))
 (define (-and b1 b2)
-  (define result
-    (with-parameterized-ops X (-node -and -or)
-      (match* (b1 b2)
-        [((? Top?) b) b]
-        [(b (? Top?)) b]
-        [((? Bot?) _) bot]
-        [(_ (? Bot?)) bot]
-        [((Node a1 _ _ _) (Node a2 _ _ _))
-         (cond
-           [(Atom<? a1 a2)
-            (match-define (Node _ l1 u1 r1) b1)
-            (-node a1
-                   (-and l1 b2)
-                   (-and u1 b2)
-                   (-and r1 b2))]
-           [(Atom<? a2 a1)
-            (match-define (Node _ l2 u2 r2) b2)
-            (-node a2
-                   (-and b1 l2)
-                   (-and b1 u2)
-                   (-and b1 r2))]
-           [else
-            (match-define (Node _ l1 u1 r1) b1)
-            (match-define (Node _ l2 u2 r2) b2)
-            (-node a1
-                   (-and (-or l1 u1)
-                         (-or l2 u2))
-                   bot
-                   (-and (-or r1 u1)
-                         (-or r2 u2)))])])))
-  (eprintf "-or ~a ~a\n ==> ~a\n" b1 b2 result)
-  result)
+  (with-parameterized-ops X (-node -and -or)
+    (match* (b1 b2)
+      [((? Top?) b) b]
+      [(b (? Top?)) b]
+      [((? Bot?) _) bot]
+      [(_ (? Bot?)) bot]
+      [((Node a1 _ _ _) (Node a2 _ _ _))
+       (cond
+         [(Atom<? a1 a2)
+          (match-define (Node _ l1 u1 r1) b1)
+          (-node a1
+                 (-and l1 b2)
+                 (-and u1 b2)
+                 (-and r1 b2))]
+         [(Atom<? a2 a1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node a2
+                 (-and b1 l2)
+                 (-and b1 u2)
+                 (-and b1 r2))]
+         [else
+          (match-define (Node _ l1 u1 r1) b1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node a1
+                 (-and (-or l1 u1)
+                       (-or l2 u2))
+                 bot
+                 (-and (-or r1 u1)
+                       (-or r2 u2)))])])))
 
 (: -or (All (X) (-> (BDD X) (BDD X) (BDD X))))
 (define (-or b1 b2)
-  (define result
-    (with-parameterized-ops X (-node -or)
-      (match* (b1 b2)
-        [((? Top?) _) top]
-        [(_ (? Top?)) top]
-        [((? Bot?) b) b]
-        [(b (? Bot?)) b]
-        [((Node a1 _ _ _) (Node a2 _ _ _))
-         (cond
-           [(Atom<? a1 a2)
-            (match-define (Node _ l1 u1 r1) b1)
-            (-node a1 l1 (-or u1 b2) r1)]
-           [(Atom<? a2 a1)
-            (match-define (Node _ l2 u2 r2) b2)
-            (-node a2 l2 (-or b1 u2) r2)]
-           [else
-            (match-define (Node _ l1 u1 r1) b1)
-            (match-define (Node _ l2 u2 r2) b2)
-            (-node a1
-                   (-or l1 l2)
-                   (-or u1 u2)
-                   (-or r1 r2))])])))
-  (eprintf "-or ~a ~a\n ==> ~a\n" b1 b2 result)
-  result)
+  (with-parameterized-ops X (-node -or)
+    (match* (b1 b2)
+      [((? Top?) _) top]
+      [(_ (? Top?)) top]
+      [((? Bot?) b) b]
+      [(b (? Bot?)) b]
+      [((Node a1 _ _ _) (Node a2 _ _ _))
+       (cond
+         [(Atom<? a1 a2)
+          (match-define (Node _ l1 u1 r1) b1)
+          (-node a1 l1 (-or u1 b2) r1)]
+         [(Atom<? a2 a1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node a2 l2 (-or b1 u2) r2)]
+         [else
+          (match-define (Node _ l1 u1 r1) b1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node a1
+                 (-or l1 l2)
+                 (-or u1 u2)
+                 (-or r1 r2))])])))
 
 (: -not (All (X) (-> (BDD X) (BDD X))))
 (define (-not b) ((inst -diff X) top b))
 
 (: -diff (All (X) (-> (BDD X) (BDD X) (BDD X))))
 (define (-diff b1 b2)
-  (define result
-    (with-parameterized-ops X (-node -diff -or)
-      (match* (b1 b2)
-        [(_ (? Top?)) bot]
-        [((? Bot?) _) bot]
-        [(b (? Bot?)) b]
-        [((? Top?) (Node a l u r))
-         ;; is this right??? TODO
-         (-node a r u l)]
-        [((Node a1 _ _ _) (Node a2 _ _ _))
-         (cond
-           [(Atom<? a1 a2)
-            (match-define (Node _ l1 u1 r1) b1)
-            (-node a1
-                   (-diff (-or l1 u1) b2)
-                   bot
-                   (-diff (-or r1 u1) b2))]
-           [(Atom<? a2 a1)
-            (match-define (Node _ l2 u2 r2) b2)
-            (-node a2
-                   (-diff b1 (-or l2 u2))
-                   bot
-                   (-diff b1 (-or r2 u2)))]
-           [else
-            (match-define (Node _ l1 u1 r1) b1)
-            (match-define (Node _ l2 u2 r2) b2)
-            (-node a1
-                   (-diff l1 l2)
-                   (-diff u1 u2)
-                   (-diff r1 r2))])])))
-  (eprintf "-diff ~a ~a\n ==> ~a\n" b1 b2 result)
-  result)
+  (with-parameterized-ops X (-node -diff -or -and)
+    (match* (b1 b2)
+      [(_ (? Top?)) bot]
+      [((? Bot?) _) bot]
+      [(b (? Bot?)) b]
+      [((? Top?) (Node a l u r))
+       ;; is this right??? TODO
+       (-node a
+              (-diff top (-or l u))
+              bot
+              (-diff top (-or r u)))]
+      [((Node a1 _ _ _) (Node a2 _ _ _))
+       (cond
+         [(Atom<? a1 a2)
+          (match-define (Node _ l1 u1 r1) b1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node a1
+                 (-diff (-or l1 u1) (-or l2 u2))
+                 bot
+                 (-diff (-or r1 u1) (-or r2 u2)))]
+         [(Atom<? a2 a1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node a2
+                 (-diff b1 (-or l2 u2))
+                 bot
+                 (-diff b1 (-or r2 u2)))]
+         [else
+          (match-define (Node _ l1 u1 r1) b1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node a1
+                 (-diff l1 l2)
+                 (-diff u1 u2)
+                 (-diff r1 r2))])])))
 
 (: And (-> Type Type Type))
 (define (And t1 t2)
@@ -303,19 +289,39 @@
 (define (Not t)
   (Diff Univ t))
 
+
+(define UnivProd (-prod Univ Univ))
+(define UnivArrow (-arrow Empty Univ))
+(define Int (-range -inf.0 +inf.0))
+(define Nat (-range 0 +inf.0))
+(define PosInt (-range 1 +inf.0))
+(define NegInt (-range -inf.0 -1))
+(define UInt8 (-range 0 255))
+(define UInt16 (-range 0 65535))
+(define UInt32 (-range 0 4294967295))
+(define Int8 (-range -128 127))
+(define Int16 (-range -32768 32767))
+(define Int32 (-range -2147483648 2147483647))
+(define Unit (-tag 0))
+(define Str (-tag 1))
+(define T (-tag 2))
+(define F (-tag 3))
+(define Bool (Or T F))
+
+
 (: ->Type (-> TypeSexp Type))
 (define (->Type sexp)
   (match sexp
     ['Univ Univ]
     ['Empty Empty]
-    ['Unit (-tag 0)]
+    ['Unit Unit]
     ['Bool (->Type '(Or T F))]
-    ['Str (-tag 1)]
+    ['Str Str]
     ['UnivProd UnivProd]
     ['UnivArrow UnivArrow]
     ['Int Int]
-    ['T (-tag 2)]
-    ['F (-tag 3)]
+    ['T T]
+    ['F F]
     ['Nat Nat]
     ['PosInt PosInt]
     ['NegInt NegInt]
@@ -334,9 +340,9 @@
     [`(And ,t . ,ts) (And (->Type t) (->Type `(And . ,ts)))]
     [`(Not ,t) (Not (->Type t))]))
 
-
 (: subtype? (-> Type Type Type))
 (define (subtype? t1 t2)
   (Diff t1 t2))
 
-(subtype? (-tag 2) (-tag 3))
+
+(subtype? T F) ;; ???????
