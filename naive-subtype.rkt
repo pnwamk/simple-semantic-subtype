@@ -84,24 +84,16 @@
     [(? Literal?) #false]
     [(And ls)
      (define P (filter Atom? ls))
-     (define-values (Ptag Prange Pprod Parrow)
+     (define-values (Ptag Pprod Parrow)
        (extract-positive-literals P))
      (cond
        [(non-empty-set? Ptag)
-        (cond
-          [(or (non-empty-set? Prange)
-               (non-empty-set? Pprod)
-               (non-empty-set? Parrow))
-           #t]
-          [else
-           (uninhabitited-Tag-clause? Ptag (filter Not-Tag? ls))])]
-       [(non-empty-set? Prange)
         (cond
           [(or (non-empty-set? Pprod)
                (non-empty-set? Parrow))
            #t]
           [else
-           (uninhabitited-Range-clause? Prange (filter Not-Range? ls))])]
+           (uninhabitited-Tag-clause? Ptag (filter Not-Tag? ls))])]
        [(non-empty-set? Pprod)
         (cond
           [(non-empty-set? Parrow) #t]
@@ -113,27 +105,23 @@
 
 (: extract-positive-literals (-> (Setof Atom)
                                  (values (Setof Tag)
-                                         (Setof Range)
                                          (Setof Prod)
                                          (Setof Arrow))))
 (define (extract-positive-literals P)
   (let loop : (values (Setof Tag)
-                      (Setof Range)
                       (Setof Prod)
                       (Setof Arrow))
     ([todo : (Setof Atom) P]
      [Ptag : (Setof Tag) (set)]
-     [Prange : (Setof Range) (set)]
      [Pprod : (Setof Prod) (set)]
      [Parrow : (Setof Arrow) (set)])
     (match todo
-      [(list) (values Ptag Prange Pprod Parrow)]
+      [(list) (values Ptag Pprod Parrow)]
       [(cons a as)
        (cond
-         [(Tag? a) (loop as (cons a Ptag) Prange Pprod Parrow)]
-         [(Range? a) (loop as Ptag (cons a Prange) Pprod Parrow)]
-         [(Prod? a) (loop as Ptag Prange (cons a Pprod) Parrow)]
-         [else (loop as Ptag Prange Pprod (cons a Parrow))])])))
+         [(Tag? a) (loop as (cons a Ptag) Pprod Parrow)]
+         [(Prod? a) (loop as Ptag (cons a Pprod) Parrow)]
+         [else (loop as Ptag Pprod (cons a Parrow))])])))
 
 
 (: uninhabitited-Tag-clause?
@@ -145,68 +133,6 @@
     [else
      (exists (λ ([n : (Not Tag)]) (set-member? P (Not-t n)))
              N)]))
-
-(: uninhabitited-Range-clause?
-   (-> (Setof Range) (Setof (Not Range)) Boolean))
-(define (uninhabitited-Range-clause? pos neg)
-  (uninhabited-range?
-   (reduce-range-with-negs
-    (combine-ranges pos)
-    neg)))
-
-
-(: uninhabited-range? (-> Range Boolean))
-;; is a given range uninhabited
-(define (uninhabited-range? r)
-  (match-define (Range lower upper) r)
-  (and lower upper (> lower upper)))
-
-
-(: combine-ranges (-> (Setof Range) Range))
-;; given a bunch of known ranges, collapse them
-;; into a single range
-(define (combine-ranges P)
-  (let-values
-      ([(lower upper)
-        (for/fold ([lower : Real -inf.0]
-                   [upper : Real +inf.0])
-                  ([r (in-set P)])
-          (values (max lower (Range-lower r))
-                  (min upper (Range-upper r))))])
-    (Range lower upper)))
-
-
-(: reduce-range-with-negs (-> Range (Setof (Not Range)) Range))
-;; a sound but incomplete procedure that reduces some
-;; range (pos) with a but of ranges that the value is known
-;; to not be in. Notably, this function will not "partition"
-;; the range, it only shrinks the range.
-(define (reduce-range-with-negs r N)
-  (define-values (new-lower new-upper)
-    (for/fold : (values Real Real)
-      ([lower (Range-lower r)]
-       [upper (Range-upper r)])
-      ([neg (in-set N)])
-      (match-define (Not (Range neg-lower neg-upper)) neg)
-      (cond
-        [(or (< neg-upper lower)
-             (> neg-lower upper))
-         (values lower upper)]
-        [(<= neg-lower lower)
-         (cond
-           [(>= neg-upper upper) (values +inf.0 -inf.0)]
-           [else (values (add1 neg-upper) upper)])]
-        [else
-         (cond
-           [(>= neg-upper upper) (values lower (sub1 neg-lower))]
-           ;; in this last case, it would be more complete to reason about
-           ;; dividing the range into two ranges (i.e. excluding neg), but
-           ;; currently we just leave it unchanged as this is sound (TODO
-           ;; make also complete -- i.e. keep track of the list of ranges
-           ;; and then at the end check if all are uninhabited)
-           [else (values lower upper)])])))
-  (Range new-lower new-upper))
-
 
 
 (: uninhabitited-Prod-clause?
