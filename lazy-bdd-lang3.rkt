@@ -23,6 +23,28 @@
 (define-predicate Bot? Bot)
 
 
+
+;
+;
+;
+;   ;;;;;;
+;   ;    ;;
+;   ;     ;
+;   ;     ;    ;;;;    ;;;;;     ;;;
+;   ;    ;;   ;    ;  ;     ;   ;   ;
+;   ;;;;;          ;  ;        ;     ;
+;   ;    ;;   ;;;;;;  ;;;;     ;     ;
+;   ;     ;  ;;    ;     ;;;;  ;;;;;;;
+;   ;     ;  ;     ;        ;  ;
+;   ;    ;;  ;    ;;  ;     ;   ;    ;
+;   ;;;;;;    ;;;; ;   ;;;;;     ;;;;
+;
+;
+;
+;
+
+
+
 ; interpretation:
 ; DNF for base types can always be simplified
 ;; and represented as the following forms
@@ -222,6 +244,25 @@
 
 
 
+;
+;
+;
+;   ;;;;;;                           ;
+;   ;    ;;                          ;
+;   ;     ;                          ;
+;   ;     ;    ; ;;;    ;;;      ;;; ;
+;   ;     ;    ;;   ;  ;   ;    ;   ;;
+;   ;    ;;    ;      ;     ;  ;     ;
+;   ;;;;;;     ;      ;     ;  ;     ;
+;   ;          ;      ;     ;  ;     ;
+;   ;          ;      ;     ;  ;     ;
+;   ;          ;       ;   ;    ;   ;;
+;   ;          ;        ;;;      ;;; ;
+;
+;
+;
+;
+
 
 
 
@@ -233,9 +274,9 @@
 ; interp: (ProdNode p l u r) == if p then (l or u) else (r or u)
 (def-struct ProdNode
   ([p : Prod]
-   [lchild : ProdBDD]
-   [union  : ProdBDD]
-   [rchild : ProdBDD]))
+   [l : ProdBDD]
+   [u  : ProdBDD]
+   [r : ProdBDD]))
 
 (: -prod-node (All (X) (-> Prod
                            ProdBDD
@@ -249,40 +290,176 @@
     [else (ProdNode a l u r)]))
 
 
+(: Prod<? (-> Prod Prod Boolean))
+(define (Prod<? p1 p2)
+  (match* (p1 p2)
+    [((Prod t1 t2)
+      (Prod s1 s2))
+     (cond
+       [(Type<? t1 s1) #t]
+       [(Type<? s1 t1) #f]
+       [(Type<? t2 s2) #t]
+       [else #f])]))
+
 (: ProdBDD<? (-> ProdBDD
                  ProdBDD
                  Boolean))
 (define (ProdBDD<? b1 b2)
-  (error 'todo))
+  (match* (b1 b2)
+    [((? Top?) _) (not (Top? b2))]
+    [((? Bot?) _) (not (ProdNode? b2))]
+    [((ProdNode p1 _ _ _)
+      (ProdNode p2 _ _ _))
+     (cond
+       [(Prod<? p1 p2) #t]
+       [(Prod<? p2 p1) #f]
+       [(ProdBDD<? (ProdNode-l b1)
+                   (ProdNode-l b2))
+        #t]
+       [(ProdBDD<? (ProdNode-l b2)
+                   (ProdNode-l b1))
+        #f]
+       [(ProdBDD<? (ProdNode-u b1)
+                   (ProdNode-u b2))
+        #t]
+       [(ProdBDD<? (ProdNode-u b2)
+                   (ProdNode-u b1))
+        #f]
+       [(ProdBDD<? (ProdNode-r b1)
+                   (ProdNode-r b2))
+        #t]
+       [else #f])]))
 
 (: -prod-or (-> ProdBDD
                 ProdBDD
                 ProdBDD))
 (define (-prod-or b1 b2)
-  (error 'todo))
+  (match* (b1 b2)
+    [((? Top?) _) top]
+    [(_ (? Top?)) top]
+    [((? Bot?) b) b]
+    [(b (? Bot?)) b]
+    [((ProdNode p1 _ _ _)
+      (ProdNode p2 _ _ _))
+     (cond
+       [(Prod<? p1 p2)
+        (match-define (ProdNode _ l1 u1 r1) b1)
+        (-prod-node p1 l1 (-prod-or u1 b2) r1)]
+       [(Prod<? p2 p1)
+        (match-define (ProdNode _ l2 u2 r2) b2)
+        (-prod-node p2 l2 (-prod-or b1 u2) r2)]
+       [else
+        (match-define (ProdNode _ l1 u1 r1) b1)
+        (match-define (ProdNode _ l2 u2 r2) b2)
+        (-prod-node p1
+                    (-prod-or l1 l2)
+                    (-prod-or u1 u2)
+                    (-prod-or r1 r2))])]))
 
 
 (: -prod-and (-> ProdBDD
                  ProdBDD
                  ProdBDD))
 (define (-prod-and b1 b2)
-  (error 'todo))
+  (match* (b1 b2)
+    [((? Top?) b) b]
+    [(b (? Top?)) b]
+    [((? Bot?) _) bot]
+    [(_ (? Bot?)) bot]
+    [((ProdNode p1 _ _ _)
+      (ProdNode p2 _ _ _))
+     (cond
+       [(Prod<? p1 p2)
+        (match-define (ProdNode _ l1 u1 r1) b1)
+        (-prod-node p1
+                    (-prod-and l1 b2)
+                    (-prod-and u1 b2)
+                    (-prod-and r1 b2))]
+       [(Prod<? p2 p1)
+        (match-define (ProdNode _ l2 u2 r2) b2)
+        (-prod-node p2
+                    (-prod-and b1 l2)
+                    (-prod-and b1 u2)
+                    (-prod-and b1 r2))]
+       [else
+        (match-define (ProdNode _ l1 u1 r1) b1)
+        (match-define (ProdNode _ l2 u2 r2) b2)
+        (-prod-node p1
+                    (-prod-and (-prod-or l1 u1)
+                               (-prod-or l2 u2))
+                    bot
+                    (-prod-and (-prod-or r1 u1)
+                               (-prod-or r2 u2)))])]))
 
 (: -prod-diff (-> ProdBDD
                   ProdBDD
                   ProdBDD))
 (define (-prod-diff b1 b2)
-  (error 'todo))
+  (match* (b1 b2)
+    [(_ (? Top?)) bot]
+    [((? Bot?) _) bot]
+    [(b (? Bot?)) b]
+    [((? Top?) (ProdNode p l u r))
+     ;; this seems right based on non-lazy BDDs
+     ;; and it seems to do the right thing...
+     (-prod-node p
+                 (-prod-diff top (-prod-or l u))
+                 bot
+                 (-prod-diff top (-prod-or r u)))]
+    [((ProdNode p1 _ _ _)
+      (ProdNode p2 _ _ _))
+     (cond
+       [(Prod<? p1 p2)
+        ;; the paper says for this case:
+        ;; a₁ ? (l₁ ∨ u₁) \ (l₂ ∨ u₂) : ⊥ : (r₁ ∨ u₁) \ (r₂ ∨ u₂)
+        ;; but that seems wrong, since it entirely throws away a₂
+        ;; this seems like a sensible choice based on the a₂ <  a₁
+        ;; case and on what non-lazy BDDs do in this case:
+        ;; a₁ ? (l₁ ∨  u₁) \ b₂ : ⊥ : (r₁ ∨  u₁) \ b₂
+        (match-define (ProdNode _ l1 u1 r1) b1)
+        (-prod-node p1
+                    (-prod-diff (-prod-or l1 u1) b2)
+                    bot
+                    (-prod-diff (-prod-or r1 u1) b2))]
+       [(Prod<? p2 p1)
+        (match-define (ProdNode _ l2 u2 r2) b2)
+        (-prod-node p2
+                    (-prod-diff b1 (-prod-or l2 u2))
+                    bot
+                    (-prod-diff b1 (-prod-or r2 u2)))]
+       [else
+        (match-define (ProdNode _ l1 u1 r1) b1)
+        (match-define (ProdNode _ l2 u2 r2) b2)
+        (-prod-node p1
+                    (-prod-diff l1 l2)
+                    (-prod-diff u1 u2)
+                    (-prod-diff r1 r2))])]))
 
 
 
 
 
+;
+;
+;
+;      ;
+;     ; ;
+;     ; ;
+;     ; ;      ; ;;;    ; ;;;    ;;;   ;       ;
+;     ; ;      ;;   ;   ;;   ;  ;   ;  ;       ;
+;    ;   ;     ;        ;      ;     ;  ;  ;  ;
+;    ;   ;     ;        ;      ;     ;  ;  ;  ;
+;    ;;;;;     ;        ;      ;     ;  ; ; ; ;
+;    ;   ;     ;        ;      ;     ;  ; ; ; ;
+;   ;     ;    ;        ;       ;   ;    ;   ;
+;   ;     ;    ;        ;        ;;;     ;   ;
+;
+;
+;
+;
 
 
-(def-struct Type ([base   : Base]
-                  [prods  : ProdBDD]
-                  [arrows : Any #;ArrowBDD]))
+
 
 (def-struct Arrow ([dom : Type]
                    [rng : Type]))
@@ -292,9 +469,9 @@
 ; interp: (ProdNode p l u r) == if p then (l or u) else (r or u)
 (def-struct ArrowNode
   ([a : Arrow]
-   [lchild : ArrowBDD]
-   [union  : ArrowBDD]
-   [rchild : ArrowBDD]))
+   [l : ArrowBDD]
+   [u  : ArrowBDD]
+   [r : ArrowBDD]))
 
 (: -arrow-node (All (X) (-> Arrow
                             ArrowBDD
@@ -312,7 +489,32 @@
                   ArrowBDD
                   Boolean))
 (define (ArrowBDD<? b1 b2)
-  (error 'todo))
+  (match* (b1 b2)
+    [((? Top?) _) (not (Top? b2))]
+    [((? Bot?) _) (not (ProdNode? b2))]
+    [((ArrowNode (Arrow t1 t2) _ _ _)
+      (ArrowNode (Arrow s1 s2) _ _ _))
+     (cond
+       [(Type<? t1 s1) #t]
+       [(Type<? s1 t1) #f]
+       [(Type<? t2 s2) #t]
+       [(Type<? s2 t2) #f]
+       [(ArrowBDD<? (ArrowNode-l b1)
+                    (ArrowNode-l b2))
+        #t]
+       [(ArrowBDD<? (ArrowNode-l b2)
+                    (ArrowNode-l b1))
+        #f]
+       [(ArrowBDD<? (ArrowNode-u b1)
+                    (ArrowNode-u b2))
+        #t]
+       [(ArrowBDD<? (ArrowNode-u b2)
+                    (ArrowNode-u b1))
+        #f]
+       [(ArrowBDD<? (ArrowNode-r b1)
+                    (ArrowNode-r b2))
+        #t]
+       [else #f])]))
 
 (: -arrow-or (-> ArrowBDD
                  ArrowBDD
@@ -333,6 +535,24 @@
 (define (-arrow-diff b1 b2)
   (error 'todo))
 
+
+
+
+(def-struct Type ([base   : Base]
+                  [prods  : ProdBDD]
+                  [arrows : ArrowBDD]))
+(: Type<? (-> Type Type Boolean))
+(define (Type<? t1 t2)
+  (match* (t1 t2)
+    [((Type base1 prods1 arrows1)
+      (Type base2 prods2 arrows2))
+     (cond
+       [(Base<? base1 base2) #t]
+       [(Base<? base2 base1) #f]
+       [(ProdBDD<? prods1 prods2) #t]
+       [(ProdBDD<? prods2 prods1) #f]
+       [(ArrowBDD<? arrows1 arrows2) #t]
+       [else #f])]))
 
 ;;(struct Var ())
 ;;(struct Rec ([x : Var] [t : Atom]) #:transparent)
@@ -355,61 +575,6 @@
 ;(define-type (BDD X) (U Top Bot (Node X)))
 ;
 
-;
-;(: Atom<? (-> Atom Atom Boolean))
-;(define (Atom<? a1 a2)
-;  (match a1
-;    [(Prod l1 r1)
-;     (match a2
-;       [(Prod l2 r2)
-;        (cond
-;          [(Type<? l1 l2) #t]
-;          [(Type<? l2 l1) #f]
-;          [(Type<? r1 r2) #t]
-;          [else #f])]
-;       [_ #t])]
-;    [(Arrow d1 r1)
-;     (match a2
-;       [(Arrow d2 r2)
-;        (cond
-;          [(Type<? d1 d2) #t]
-;          [(Type<? d2 d1) #f]
-;          [(Type<? r1 r2) #t]
-;          [else #f])]
-;       [_ #f])]))
-;
-;(: BDD<? (All (X) (-> (BDD X) (BDD X) Boolean)))
-;(define (BDD<? b1 b2)
-;  (match b1
-;    [(? Top?) (not (Top? b2))]
-;    [(? Bot?) (Node? b2)]
-;    [(Node a1 l1 u1 r1)
-;     (match b2
-;       [(Node a2 l2 u2 r2)
-;        (cond
-;          [(Atom<? a1 a2) #t]
-;          [(Atom<? a2 a1) #f]
-;          [(BDD<? l1 l2) #t]
-;          [(BDD<? l2 l1) #f]
-;          [(BDD<? u1 u2) #t]
-;          [(BDD<? u2 u1) #f]
-;          [(BDD<? r1 r2) #t]
-;          [else #f])]
-;       [_ #f])]))
-;
-;
-;(: Type<? (-> Type Type Boolean))
-;(define (Type<? t1 t2)
-;  (match* (t1 t2)
-;    [((Type base1 prods1 arrows1)
-;      (Type base2 prods2 arrows2))
-;     (cond
-;       [(Base<? base1 base2) #t]
-;       [(Base<? base2 base1) #f]
-;       [(BDD<? prods1 prods2) #t]
-;       [(BDD<? prods2 prods1) #f]
-;       [(BDD<? arrows1 arrows2) #t]
-;       [else #f])]))
 ;
 ;(: -and (All (X) (-> (BDD X) (BDD X) (BDD X))))
 ;(define (-and b1 b2)
