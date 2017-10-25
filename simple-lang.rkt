@@ -91,7 +91,6 @@
     ['Int8 Int8]
     ['Int16 Int16]
     ['Int32 Int32]
-    [`(Range ,lower ,upper) (Range lower upper)]
     [`(Prod ,l ,r) (Prod (->Type l) (->Type r))]
     [`(Arrow ,dom ,rng) (Arrow (->Type dom) (->Type rng))]
     [`(Or . ,ts) (Or (map ->Type ts))]

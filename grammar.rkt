@@ -22,7 +22,6 @@
             'Int8
             'Int16
             'Int32
-            (List 'Range Real Real)
             (List 'Prod x x)
             (List 'Arrow x x)
             (Pair 'Or (Listof x))

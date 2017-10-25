@@ -25,9 +25,6 @@
 (define T : TypeSexp 'T)
 (define F : TypeSexp 'F)
 
-(: Range (-> Real Real TypeSexp))
-(define (Range l u) `(Range ,l ,u))
-
 (: Prod (-> TypeSexp TypeSexp TypeSexp))
 (define (Prod l r) `(Prod ,l ,r))
 
