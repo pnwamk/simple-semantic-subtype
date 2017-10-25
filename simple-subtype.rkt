@@ -3,7 +3,7 @@
 (require racket/list
          racket/match
          "simple-lang.rkt"
-         "set-utils.rkt"
+         "list-set-utils.rkt"
          "tunit.rkt"
          "subtype-test-suite.rkt")
 

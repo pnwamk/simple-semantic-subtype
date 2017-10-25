@@ -2,7 +2,7 @@
 
 (require racket/match
          "grammar.rkt"
-         "set-utils.rkt")
+         "list-set-utils.rkt")
 
 (provide (all-defined-out))
 

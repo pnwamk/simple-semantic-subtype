@@ -2,6 +2,7 @@
 
 (require racket/match
          (only-in racket/unsafe/ops unsafe-fx<)
+         "tag-set-utils.rkt"
          "grammar.rkt"
          "tunit.rkt")
 
@@ -16,20 +17,32 @@
 
 (define top 'Top)
 (define bot 'Bot)
-(define-type Top 'Top)
-(define-predicate Top? Top)
-(define-type Bot 'Bot)
-(define-predicate Bot? Bot)
 
-(def-struct Tag ([id : Fixnum]))
-(def-struct Range ([lower : Real]
-                   [upper : Real]))
+(define-type Top 'Top)
+(: Top? (-> Any Boolean : Top))
+(define (Top? t) (eq? 'Top t))
+
+(define-type Bot 'Bot)
+(: Bot? (-> Any Boolean : Bot))
+(define (Bot? t) (eq? 'Bot t))
+
+(define-type Tag Fixnum)
+(def-struct Tags ([sign? : Boolean]
+                  [tags : TagSet]))
+
+(define (Tags<? ts1 ts2))
+
+(define-type TagDNF (U Top Bot Tags))
+
+
+
+
 (def-struct Prod ([l : Type]
                   [r : Type]))
 (def-struct Arrow ([dom : Type]
                    [rng : Type]))
 
-(define-type Atom (U Tag Range Prod Arrow))
+(define-type Atom (U Tag Prod Arrow))
 
 (: -atom (All (X) (-> (∩ X Atom) (BDD X))))
 (define (-atom t) ((inst Node X) t top bot bot))
@@ -52,11 +65,14 @@
     [(equal? l r) ((inst -or X) l u)]
     [else ((inst Node X) a l u r)]))
 
-(define-type (BDD X) (U Top Bot (Node X)))
+(define-type (BDD X) (U Top Bot TagNode))
 
-(def-struct Type ([tags : (BDD Tag)]
-                  [ranges : (BDD Range)]
-                  [prods : (BDD Prod)]
+
+
+
+
+(def-struct Type ([tags : TagDNF]
+                  [prods : ProdDNF]
                   [arrows : (BDD Arrow)]))
 
 (define-syntax-rule (with-parameterized-ops X (op ...) . rst)
@@ -67,16 +83,12 @@
 ;(struct Rec ([x : Var] [t : Atom]) #:transparent)
 
 
-(define Univ : Type (Type top top top top))
-(define Empty : Type  (Type bot bot bot bot))
+(define Univ : Type (Type top top top))
+(define Empty : Type  (Type bot bot bot))
 
 (: -tag (-> Fixnum Type))
 (define (-tag n)
   (Type (-atom (Tag n)) bot bot bot))
-
-(: -range (-> Real Real Type))
-(define (-range l u)
-  (Type bot (-atom (Range l u)) bot bot))
 
 (: -prod (-> Type Type Type))
 (define (-prod fst snd)
@@ -94,20 +106,9 @@
      (match a2
        [(Tag n2) (unsafe-fx< n1 n2)]
        [_ #t])]
-    [(Range l1 u1)
-     (match a2
-       [(? Tag?) #f]
-       [(Range l2 u2)
-        (cond
-          [(< l1 l2) #t]
-          [(> l1 l2) #f]
-          [(< u1 u2) #t]
-          [else #f])]
-       [_ #t])]
     [(Prod l1 r1)
      (match a2
        [(? Tag?) #f]
-       [(? Range?) #f]
        [(Prod l2 r2)
         (cond
           [(Type<? l1 l2) #t]
@@ -298,16 +299,6 @@
 
 (define UnivProd (-prod Univ Univ))
 (define UnivArrow (-arrow Empty Univ))
-(define Int (-range -inf.0 +inf.0))
-(define Nat (-range 0 +inf.0))
-(define PosInt (-range 1 +inf.0))
-(define NegInt (-range -inf.0 -1))
-(define UInt8 (-range 0 255))
-(define UInt16 (-range 0 65535))
-(define UInt32 (-range 0 4294967295))
-(define Int8 (-range -128 127))
-(define Int16 (-range -32768 32767))
-(define Int32 (-range -2147483648 2147483647))
 (define Unit (-tag 0))
 (define Str (-tag 1))
 (define T (-tag 2))
@@ -325,19 +316,18 @@
     ['Str Str]
     ['UnivProd UnivProd]
     ['UnivArrow UnivArrow]
-    ['Int Int]
+    ;['Int Int]
     ['T T]
     ['F F]
-    ['Nat Nat]
-    ['PosInt PosInt]
-    ['NegInt NegInt]
-    ['UInt8 UInt8]
-    ['UInt16 UInt16]
-    ['UInt32 UInt32]
-    ['Int8 Int8]
-    ['Int16 Int16]
-    ['Int32 Int32]
-    [`(Range ,lower ,upper) (-range lower upper)]
+    ;['Nat Nat]
+    ;['PosInt PosInt]
+    ;['NegInt NegInt]
+    ;['UInt8 UInt8]
+    ;['UInt16 UInt16]
+    ;['UInt32 UInt32]
+    ;['Int8 Int8]
+    ;['Int16 Int16]
+    ;['Int32 Int32]
     [`(Prod ,l ,r) (-prod (->Type l) (->Type r))]
     [`(Arrow ,dom ,rng) (-arrow (->Type dom) (->Type rng))]
     [`(Or) Empty]
