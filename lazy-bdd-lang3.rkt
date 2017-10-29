@@ -592,10 +592,10 @@
 
 (: subtype? (-> Type Type Boolean))
 (define (subtype? t1 t2)
-  (uninhabited-Type? (Diff t1 t2)))
+  (empty-Type? (Diff t1 t2)))
 
-(: uninhabited-Type? (-> Type Boolean))
-(define (uninhabited-Type? t)
+(: empty-Type? (-> Type Boolean))
+(define (empty-Type? t)
   (match-define (Type base prod arrow) t)
   (and (Bot-base? base)
        (empty-Prod? prod Univ Univ (list))
@@ -606,8 +606,8 @@
                    Boolean))
 (define (empty-Prod? t s1 s2 N)
   (match t
-    [(? Top?) (or (uninhabited-Type? s1)
-                  (uninhabited-Type? s2)
+    [(? Top?) (or (empty-Type? s1)
+                  (empty-Type? s2)
                   (Prod-Phi s1 s2 N))]
     [(? Bot?) #t]
     [(Node (and p (Prod t1 t2)) l u r)
@@ -619,10 +619,12 @@
 (define (Prod-Phi s1 s2 N)
   (match N
     [(cons (Prod t1 t2) N)
-     (and (or (subtype? s1 t1)
-              (Prod-Phi (Diff s1 t1) s2 N))
-          (or (subtype? s2 t2)
-              (Prod-Phi s1 (Diff s2 t2) N)))]
+     (and (let ([s1* (Diff s1 t1)])
+            (or (empty-Type? s1*)
+                (Prod-Phi s1* s2 N)))
+          (let ([s2* (Diff s2 t2)])
+            (or (empty-Type? s2*)
+                (Prod-Phi s1 s2* N))))]
     [_ #f]))
 
 
@@ -647,12 +649,15 @@
 (define (Arrow-Phi t1 t2 P)
   (match P
     [(cons (Arrow s1* s2*) P)
-     (and (or (subtype? t1 s1*)
-              (let ([s2 (And* (map Arrow-rng P))])
-                (subtype? s2 (Not t2))))
-          (Arrow-Phi t1 (And t2 s2*) P)
-          (Arrow-Phi (Diff t1 s1*) t2 P))]
-    [_ #t]))
+     (let ([t1* (Diff t1 s1*)])
+       (and (or (empty-Type? t1*)
+                (let ([s2 (And* (map Arrow-rng P))])
+                  (subtype? s2 (Not t2))))
+            (Arrow-Phi t1 (And t2 s2*) P)
+            (Arrow-Phi t1* t2 P)))]
+    ;; this last clause was just #t from the paper...?
+    [_ (or (empty-Type? t1)
+           (empty-Type? t2))]))
 
 
 
