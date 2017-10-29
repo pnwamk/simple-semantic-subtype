@@ -15,6 +15,88 @@
     [(_ #:∀ (poly-ids ...) name (fld ...))
      (struct (poly-ids ...) name (fld ...) #:transparent)]))
 
+
+
+;
+;
+;
+;   ;;;;;;;
+;      ;
+;      ;
+;      ;     ;     ;  ; ;;;      ;;;
+;      ;      ;   ;;  ;;   ;    ;   ;
+;      ;      ;   ;   ;     ;  ;     ;
+;      ;      ;   ;   ;     ;  ;     ;
+;      ;       ; ;;   ;     ;  ;;;;;;;
+;      ;       ; ;    ;     ;  ;
+;      ;        ;;    ;;   ;    ;    ;
+;      ;        ;;    ; ;;;      ;;;;
+;               ;     ;
+;               ;     ;
+;             ;;      ;
+;
+
+
+
+(def-struct Type ([base   : Base]
+                  [prods  : (BDD Prod)]
+                  [arrows : (BDD Arrow)]))
+(: Type<? (-> Type Type Boolean))
+(define (Type<? t1 t2)
+  (match* (t1 t2)
+    [((Type base1 prods1 arrows1)
+      (Type base2 prods2 arrows2))
+     (cond
+       [(Base<? base1 base2) #t]
+       [(Base<? base2 base1) #f]
+       [(BDD<? prods1 prods2) #t]
+       [(BDD<? prods2 prods1) #f]
+       [(BDD<? arrows1 arrows2) #t]
+       [else #f])]))
+
+
+(: And (-> Type Type Type))
+(define (And t1 t2)
+  (match* (t1 t2)
+    [((Type base1 prods1 arrows1)
+      (Type base2 prods2 arrows2))
+     (Type (-base-and base1 base2)
+           (-and prods1  prods2)
+           (-and arrows1 arrows2))]))
+
+(: And* (-> (Listof Type) Type))
+(define (And* ts)
+  (foldl And Univ ts))
+
+(: Or (-> Type Type Type))
+(define (Or t1 t2)
+  (match* (t1 t2)
+    [((Type base1 prods1 arrows1)
+      (Type base2 prods2 arrows2))
+     (Type (-base-or base1 base2)
+           (-or prods1  prods2)
+           (-or arrows1 arrows2))]))
+
+(: Or* (-> (Listof Type) Type))
+(define (Or* ts)
+  (foldl Or Empty ts))
+
+(: Diff (-> Type Type Type))
+(define (Diff t1 t2)
+  (match* (t1 t2)
+    [((Type base1 prods1 arrows1)
+      (Type base2 prods2 arrows2))
+     (Type (-base-diff base1 base2)
+           (-diff prods1 prods2)
+           (-diff arrows1 arrows2))]))
+
+(: Not (-> Type Type))
+(define (Not t)
+  (Diff Univ t))
+
+
+
+
 (define top 'Top)
 (define bot 'Bot)
 (define-type Top 'Top)
@@ -70,6 +152,10 @@
      (BasePos #b0)]
     [else (BaseNeg bits)]))
 
+(: -base-type (-> Integer Type))
+(define (-base-type b)
+  (Type (-base-pos b) bot bot))
+
 (: Base<? (-> Base Base Boolean))
 (define (Base<? b1 b2)
   (match* (b1 b2)
@@ -93,9 +179,6 @@
 (define (Bot-base? b)
   (equal? b bot-base))
 
-(: -base-type (-> Integer Type))
-(define (-base-type b)
-  (Type (-base-pos b) bot bot))
 
 ;; 4 bits for non-numeric base types
 (define Unit (-base-type #b1))
@@ -363,6 +446,7 @@
 (define (-or b1 b2)
   (with-parameterized-ops X (-node -or)
     (match* (b1 b2)
+      [(b b) b]
       [((? Top?) _) top]
       [(_ (? Top?)) top]
       [((? Bot?) b) b]
@@ -391,60 +475,61 @@
 (define (-and b1 b2)
   (with-parameterized-ops X (-node -and -or)
     (match* (b1 b2)
-    [((? Top?) b) b]
-    [(b (? Top?)) b]
-    [((? Bot?) _) bot]
-    [(_ (? Bot?)) bot]
-    [((Node p1 _ _ _)
-      (Node p2 _ _ _))
-     (cond
-       [(Atom<? p1 p2)
-        (match-define (Node _ l1 u1 r1) b1)
-        (-node p1
-               (-and l1 b2)
-               (-and u1 b2)
-               (-and r1 b2))]
-       [(Atom<? p2 p1)
-        (match-define (Node _ l2 u2 r2) b2)
-        (-node p2
-               (-and b1 l2)
-               (-and b1 u2)
-               (-and b1 r2))]
-       [else
-        (match-define (Node _ l1 u1 r1) b1)
-        (match-define (Node _ l2 u2 r2) b2)
-        (-node p1
-               (-and (-or l1 u1)
-                     (-or l2 u2))
-               bot
-               (-and (-or r1 u1)
-                     (-or r2 u2)))])])))
+      [(b b) b]
+      [((? Top?) b) b]
+      [(b (? Top?)) b]
+      [((? Bot?) _) bot]
+      [(_ (? Bot?)) bot]
+      [((Node p1 _ _ _)
+        (Node p2 _ _ _))
+       (cond
+         [(Atom<? p1 p2)
+          (match-define (Node _ l1 u1 r1) b1)
+          (-node p1
+                 (-and l1 b2)
+                 (-and u1 b2)
+                 (-and r1 b2))]
+         [(Atom<? p2 p1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node p2
+                 (-and b1 l2)
+                 (-and b1 u2)
+                 (-and b1 r2))]
+         [else
+          (match-define (Node _ l1 u1 r1) b1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node p1
+                 (-and (-or l1 u1)
+                       (-or l2 u2))
+                 bot
+                 (-and (-or r1 u1)
+                       (-or r2 u2)))])])))
 (: -neg (All (X) (-> (BDD X) (BDD X))))
 (define (-neg b)
   (with-parameterized-ops X (-node -neg -or)
     (match b
-    [(? Top?) bot]
-    [(? Bot?) top]
-    [(Node p l u (? Bot?))
-     (-node p
-            bot
-            (-neg (-or u l))
-            (-neg u))]
-    [(Node p (? Bot?) u r)
-     (-node p
-            (-neg u)
-            (-neg (-or u r))
-            bot)]
-    [(Node p l (? Bot?) r)
-     (-node p
-            (-neg l)
-            (-neg (-or l r))
-            (-neg l))]
-    [(Node p l u r)
-     (-node p
-            (-neg (-or l u))
-            bot
-            (-neg (-or r u)))])))
+      [(? Top?) bot]
+      [(? Bot?) top]
+      [(Node p l u (? Bot?))
+       (-node p
+              bot
+              (-neg (-or u l))
+              (-neg u))]
+      [(Node p (? Bot?) u r)
+       (-node p
+              (-neg u)
+              (-neg (-or u r))
+              bot)]
+      [(Node p l (? Bot?) r)
+       (-node p
+              (-neg l)
+              (-neg (-or l r))
+              (-neg l))]
+      [(Node p l u r)
+       (-node p
+              (-neg (-or l u))
+              bot
+              (-neg (-or r u)))])))
 
 (: -diff (All (X) (-> (BDD X)
                       (BDD X)
@@ -452,94 +537,58 @@
 (define (-diff b1 b2)
   (with-parameterized-ops X (-node -or -neg -diff)
     (match* (b1 b2)
-    [(_ (? Top?)) bot]
-    [((? Bot?) _) bot]
-    [(b (? Bot?)) b]
-    [((? Top?) _) (-neg b2)]
-    [((Node p1 _ _ _)
-      (Node p2 _ _ _))
-     (cond
-       [(Atom<? p1 p2)
-        ;; NOTE: different from paper, consistent w/ CDuce
-        (match-define (Node _ l1 u1 r1) b1)
-        (-node p1
-               (-diff l1 b2)
-               (-diff u1 b2)
-               (-diff l1 b2))]
-       [(Atom<? p2 p1)
-        (match-define (Node _ l2 u2 r2) b2)
-        (-node p2
-               (-diff b1 (-or l2 u2))
-               bot
-               (-diff b1 (-or r2 u2)))]
-       [else
-        (match-define (Node _ l1 u1 r1) b1)
-        (match-define (Node _ l2 u2 r2) b2)
-        (-node p1
-               (-diff l1 l2)
-               (-diff u1 u2)
-               (-diff r1 r2))])])))
+      [(b b) bot]
+      [(_ (? Top?)) bot]
+      [((? Bot?) _) bot]
+      [(b (? Bot?)) b]
+      [((? Top?) _) (-neg b2)]
+      [((Node p1 _ _ _)
+        (Node p2 _ _ _))
+       (cond
+         [(Atom<? p1 p2)
+          ;; NOTE: different from paper, consistent w/ CDuce
+          (match-define (Node _ l1 u1 r1) b1)
+          (-node p1
+                 (-diff l1 b2)
+                 (-diff u1 b2)
+                 (-diff l1 b2))]
+         [(Atom<? p2 p1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node p2
+                 (-diff b1 (-or l2 u2))
+                 bot
+                 (-diff b1 (-or r2 u2)))]
+         [else
+          (match-define (Node _ l1 u1 r1) b1)
+          (match-define (Node _ l2 u2 r2) b2)
+          (-node p1
+                 (-diff l1 l2)
+                 (-diff u1 u2)
+                 (-diff r1 r2))])])))
 
 
 
 
-
-
-
-(def-struct Type ([base   : Base]
-                  [prods  : (BDD Prod)]
-                  [arrows : (BDD Arrow)]))
-(: Type<? (-> Type Type Boolean))
-(define (Type<? t1 t2)
-  (match* (t1 t2)
-    [((Type base1 prods1 arrows1)
-      (Type base2 prods2 arrows2))
-     (cond
-       [(Base<? base1 base2) #t]
-       [(Base<? base2 base1) #f]
-       [(BDD<? prods1 prods2) #t]
-       [(BDD<? prods2 prods1) #f]
-       [(BDD<? arrows1 arrows2) #t]
-       [else #f])]))
-
-;;(struct Var ())
-;;(struct Rec ([x : Var] [t : Atom]) #:transparent)
 ;
 ;
-(define Univ : Type (Type top-base top top))
-(define Empty : Type  (Type bot-base bot bot))
+;
+;     ;;;;            ;
+;   ;;   ;;           ;          ;
+;   ;                 ;          ;
+;   ;        ;     ;  ; ;;;    ;;;;;;   ;     ;  ; ;;;      ;;;
+;   ;;       ;     ;  ;;   ;     ;       ;   ;;  ;;   ;    ;   ;
+;     ;;;    ;     ;  ;     ;    ;       ;   ;   ;     ;  ;     ;
+;        ;;  ;     ;  ;     ;    ;       ;   ;   ;     ;  ;     ;
+;         ;  ;     ;  ;     ;    ;        ; ;;   ;     ;  ;;;;;;;
+;   ;     ;  ;     ;  ;     ;    ;        ; ;    ;     ;  ;
+;   ;;   ;;  ;;   ;;  ;;   ;     ;         ;;    ;;   ;    ;    ;
+;    ;;;;;    ;;;; ;  ; ;;;       ;;;      ;;    ; ;;;      ;;;;
+;                                          ;     ;
+;                                          ;     ;
+;                                        ;;      ;
+;
 
 
-(: And (-> Type Type Type))
-(define (And t1 t2)
-  (match* (t1 t2)
-    [((Type base1 prods1 arrows1)
-      (Type base2 prods2 arrows2))
-     (Type (-base-and base1 base2)
-           (-and prods1  prods2)
-           (-and arrows1 arrows2))]))
-
-(: Or (-> Type Type Type))
-(define (Or t1 t2)
-  (match* (t1 t2)
-    [((Type base1 prods1 arrows1)
-      (Type base2 prods2 arrows2))
-     (Type (-base-or base1 base2)
-           (-or prods1  prods2)
-           (-or arrows1 arrows2))]))
-
-(: Diff (-> Type Type Type))
-(define (Diff t1 t2)
-  (match* (t1 t2)
-    [((Type base1 prods1 arrows1)
-      (Type base2 prods2 arrows2))
-     (Type (-base-diff base1 base2)
-           (-diff prods1 prods2)
-           (-diff arrows1 arrows2))]))
-
-(: Not (-> Type Type))
-(define (Not t)
-  (Diff Univ t))
 
 (: subtype? (-> Type Type Boolean))
 (define (subtype? t1 t2)
@@ -547,99 +596,101 @@
 
 (: uninhabited-Type? (-> Type Boolean))
 (define (uninhabited-Type? t)
-  (match-define (Type base prods arrows) t)
+  (match-define (Type base prod arrow) t)
   (and (Bot-base? base)
-       (empty-Prods? prods)
-       (empty-Arrows? arrows)))
+       (empty-Prod? prod Univ Univ (list))
+       (empty-Arrow? arrow Empty (list) (list))))
 
 
-(: empty-Prods?
-   (-> (BDD Prod) Boolean))
-(define (empty-Prods? t)
-  (error 'todo)
-  #;(let ([s1 (And (map Prod-l P))]
-          [s2 (And (map Prod-r P))])
-      (or (subtype? s1 Empty)
-          (subtype? s2 Empty)
-          (Prod-Phi s1 s2 N))))
-;
-;#;#;
-;(: Prod-Phi (-> Type Type (Setof (Not Prod)) Boolean))
-;(define (Prod-Phi s1 s2 N)
-;  (error 'todo)
-;  #;(match N
-;      [(cons (Not (Prod t1 t2)) N)
-;       (and (or (subtype? s1 t1)
-;                (Prod-Phi (Diff s1 t1) s2 N))
-;            (or (subtype? s2 t2)
-;                (Prod-Phi s1 (Diff s2 t2) N)))]
-;      [_ #f]))
-;
+(: empty-Prod? (-> (BDD Prod) Type Type (Listof Prod)
+                   Boolean))
+(define (empty-Prod? t s1 s2 N)
+  (match t
+    [(? Top?) (or (uninhabited-Type? s1)
+                  (uninhabited-Type? s2)
+                  (Prod-Phi s1 s2 N))]
+    [(? Bot?) #t]
+    [(Node (and p (Prod t1 t2)) l u r)
+     (and (empty-Prod? l (And s1 t1) (And s2 t2) N)
+          (empty-Prod? u s1 s2 N)
+          (empty-Prod? r s1 s2 (cons p N)))]))
 
-(: empty-Arrows?
-   (-> (BDD Arrow) Boolean))
-(define (empty-Arrows? t)
-  (error 'todo)
-  #;(let ([dom (Or (map Arrow-dom P))])
-      (exists (λ ([na : (Not Arrow)])
-                (let ([t1 (Arrow-dom (Not-t na))]
-                      [t2 (Arrow-rng (Not-t na))])
-                  (and (subtype? t1 dom)
-                       (Arrow-Phi t1 (Not t2) P))))
-              N)))
-;
-;#;#;
-;(: Arrow-Phi (-> Type Type (Setof Arrow)
-;                 Boolean))
-;(define (Arrow-Phi t1 t2 P)
-;  (error 'todo)
-;  #;(match P
-;      [(cons (Arrow s1* s2*) P)
-;       (and (or (subtype? t1 s1*)
-;                (let ([s2 (And (map Arrow-rng P))])
-;                  (subtype? s2 (Not t2))))
-;            (Arrow-Phi t1 (And (set t2 s2*)) P)
-;            (Arrow-Phi (Diff t1 s1*) t2 P))]
-;      [_ #t]))
-;
-;
-;
-;(: ->Type (-> TypeSexp Type))
-;(define (->Type sexp)
-;  (match sexp
-;    ['Univ Univ]
-;    ['Empty Empty]
-;    ['Unit Unit]
-;    ['Bool (Or T F)]
-;    ['Str Str]
-;    ['UnivProd (-prod Univ Univ)]
-;    ['UnivArrow (-arrow Empty Univ)]
-;    ['Int Int]
-;    ['T T]
-;    ['F F]
-;    ['Nat Nat]
-;    ['PosInt PosInt]
-;    ['NegInt NegInt]
-;    ['UInt8 UInt8]
-;    ['UInt16 UInt16]
-;    ['UInt32 UInt32]
-;    ['Int8 Int8]
-;    ['Int16 Int16]
-;    ['Int32 Int32]
-;    [`(Prod ,l ,r) (-prod (->Type l) (->Type r))]
-;    [`(Arrow ,dom ,rng) (-arrow (->Type dom) (->Type rng))]
-;    [`(Or . ,ts) (foldl (λ ([sexp : TypeSexp] [t : Type])
-;                          (Or (->Type sexp) t))
-;                        Empty
-;                        ts)]
-;    [`(And . ,ts) (foldl (λ ([sexp : TypeSexp] [t : Type])
-;                          (And (->Type sexp) t))
-;                        Univ
-;                        ts)]
-;    [`(Not ,t) (Not (->Type t))]))
-;
-;
-;(module+ test
-;  ;(check-false (subtype? (Arrow Int Univ) (Arrow Int Int)))
-;  (run-subtype-tests ->Type subtype?)
-;  )
+(: Prod-Phi (-> Type Type (Listof Prod) Boolean))
+(define (Prod-Phi s1 s2 N)
+  (match N
+    [(cons (Prod t1 t2) N)
+     (and (or (subtype? s1 t1)
+              (Prod-Phi (Diff s1 t1) s2 N))
+          (or (subtype? s2 t2)
+              (Prod-Phi s1 (Diff s2 t2) N)))]
+    [_ #f]))
+
+
+(: empty-Arrow? (-> (BDD Arrow) Type (Listof Arrow) (Listof Arrow)
+                    Boolean))
+(define (empty-Arrow? t dom P N)
+  (match t
+    [(? Top?) (ormap (match-lambda
+                       [(Arrow t1 t2)
+                        (and (subtype? t1 dom)
+                             (Arrow-Phi t1 (Not t2) P))])
+                     N)]
+    [(? Bot?) #t]
+    [(Node (and a (Arrow s1 s2)) l u r)
+     (and (empty-Arrow? l (Or s1 dom) (cons a P) N)
+          (empty-Arrow? u dom P N)
+          (empty-Arrow? r dom P (cons a N)))]))
+
+
+(: Arrow-Phi (-> Type Type (Listof Arrow)
+                 Boolean))
+(define (Arrow-Phi t1 t2 P)
+  (match P
+    [(cons (Arrow s1* s2*) P)
+     (and (or (subtype? t1 s1*)
+              (let ([s2 (And* (map Arrow-rng P))])
+                (subtype? s2 (Not t2))))
+          (Arrow-Phi t1 (And t2 s2*) P)
+          (Arrow-Phi (Diff t1 s1*) t2 P))]
+    [_ #t]))
+
+
+
+(define Univ : Type (Type top-base top top))
+(define Empty : Type  (Type bot-base bot bot))
+
+
+
+(: ->Type (-> TypeSexp Type))
+(define (->Type sexp)
+  (match sexp
+    ['Univ Univ]
+    ['Empty Empty]
+    ['Unit Unit]
+    ['Bool (Or T F)]
+    ['Str Str]
+    ['UnivProd (-prod-type Univ Univ)]
+    ['UnivArrow (-arrow-type Empty Univ)]
+    ['Int Int]
+    ['T T]
+    ['F F]
+    ['Nat Nat]
+    ['PosInt PosInt]
+    ['NegInt NegInt]
+    ['UInt8 UInt8]
+    ['UInt16 UInt16]
+    ['UInt32 UInt32]
+    ['Int8 Int8]
+    ['Int16 Int16]
+    ['Int32 Int32]
+    [`(Prod ,l ,r) (-prod-type (->Type l) (->Type r))]
+    [`(Arrow ,dom ,rng) (-arrow-type (->Type dom) (->Type rng))]
+    [`(Or . ,ts) (Or* (map ->Type ts))]
+    [`(And . ,ts) (And* (map ->Type ts))]
+    [`(Not ,t) (Not (->Type t))]))
+
+
+(module+ test
+  ;(check-false (subtype? (Arrow Int Univ) (Arrow Int Int)))
+  (run-subtype-tests ->Type subtype?)
+  )
