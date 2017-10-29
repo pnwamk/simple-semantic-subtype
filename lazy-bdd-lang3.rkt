@@ -551,7 +551,7 @@
           (-node p1
                  (-diff l1 b2)
                  (-diff u1 b2)
-                 (-diff l1 b2))]
+                 (-diff r1 b2))]
          [(Atom<? p2 p1)
           (match-define (Node _ l2 u2 r2) b2)
           (-node p2
