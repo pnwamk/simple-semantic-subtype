@@ -8,6 +8,8 @@
          "subtype-test-suite.rkt")
 
 
+(provide ->Type subtype?)
+
 (define-type Literal (U Atom (Not Atom)))
 (define-predicate Literal? Literal)
 (define-type Clause (U Literal (And Literal)))
@@ -68,20 +70,20 @@
 
 (: subtype? (-> Type Type Boolean))
 (define (subtype? t1 t2)
-  (uninhabited-DNF?
+  (empty-DNF?
    (->DNF (And (set t1 (Not t2))))))
 
-(: uninhabited-DNF? (-> DNF Boolean))
-(define (uninhabited-DNF? d)
+(: empty-DNF? (-> DNF Boolean))
+(define (empty-DNF? d)
   (match d
-    [(? Literal?) #false]
-    [(? And? clause) (uninhabitited-DNF-clause? clause)]
-    [(Or cs) (forall uninhabitited-DNF-clause? cs)]))
+    [(? Literal? l) (empty-DNF-clause? l)]
+    [(? And? clause) (empty-DNF-clause? clause)]
+    [(Or cs) (forall empty-DNF-clause? cs)]))
 
-(: uninhabitited-DNF-clause? (-> Clause Boolean))
-(define (uninhabitited-DNF-clause? clause)
+(: empty-DNF-clause? (-> Clause Boolean))
+(define (empty-DNF-clause? clause)
   (match clause
-    [(? Literal?) #false]
+    [(? Literal? l) (empty-DNF-clause? (And (list l)))]
     [(And ls)
      (define P (filter Atom? ls))
      (define-values (Ptag Pprod Parrow)

@@ -415,30 +415,34 @@
                       (BDD X)
                       Boolean)))
 (define (BDD<? b1 b2)
-  (match* (b1 b2)
-    [((? Top?) _) (not (Top? b2))]
-    [((? Bot?) _) (not (Node? b2))]
-    [((Node p1 _ _ _)
-      (Node p2 _ _ _))
-     (cond
-       [(Atom<? p1 p2) #t]
-       [(Atom<? p2 p1) #f]
-       [(BDD<? (Node-l b1)
-               (Node-l b2))
-        #t]
-       [(BDD<? (Node-l b2)
-               (Node-l b1))
-        #f]
-       [(BDD<? (Node-u b1)
-               (Node-u b2))
-        #t]
-       [(BDD<? (Node-u b2)
-               (Node-u b1))
-        #f]
-       [(BDD<? (Node-r b1)
-               (Node-r b2))
-        #t]
-       [else #f])]))
+  (match b1
+    ;; Top precedes Bot and Node
+    [(? Top?) (not (Top? b2))]
+    ;; Bot precedes Node
+    [(? Bot?) (Node? b2)]
+    [(Node p1 _ _ _)
+     (match b2
+       [(Node p2 _ _ _)
+        (cond
+          [(Atom<? p1 p2) #t]
+          [(Atom<? p2 p1) #f]
+          [(BDD<? (Node-l b1)
+                  (Node-l b2))
+           #t]
+          [(BDD<? (Node-l b2)
+                  (Node-l b1))
+           #f]
+          [(BDD<? (Node-u b1)
+                  (Node-u b2))
+           #t]
+          [(BDD<? (Node-u b2)
+                  (Node-u b1))
+           #f]
+          [(BDD<? (Node-r b1)
+                  (Node-r b2))
+           #t]
+          [else #f])]
+       [_ #f])]))
 
 (: -or (All (X) (-> (BDD X)
                     (BDD X)
@@ -696,6 +700,5 @@
 
 
 (module+ test
-  ;(check-false (subtype? (Arrow Int Univ) (Arrow Int Int)))
   (run-subtype-tests ->Type subtype?)
   )
