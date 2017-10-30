@@ -125,34 +125,73 @@
 ;
 ;
 
+(: list-or (-> (Listof Integer)
+               (Listof Integer)
+               (Listof Integer)))
+(define (list-or xs ys)
+  (match* (xs ys)
+    [((list) _) ys]
+    [(_ (list)) xs]
+    [((cons x xs-rst) (cons y ys-rst))
+     (cond
+       [(< x y)
+        (cons x (list-or xs-rst ys))]
+       [(= x y)
+        (list-or xs-rst ys)]
+       [else (cons y (list-or ys-rst xs))])]))
+
+(: list-and (-> (Listof Integer)
+                (Listof Integer)
+                (Listof Integer)))
+(define (list-and xs ys)
+  (match* (xs ys)
+    [((list) _) '()]
+    [(_ (list)) '()]
+    [((cons x xs-rst) (cons y ys-rst))
+     (cond
+       [(< x y) (list-and xs-rst ys)]
+       [(= x y) (cons x (list-and xs-rst ys-rst))]
+       [else (list-and ys-rst xs)])]))
+
+(: list-diff (-> (Listof Integer)
+                 (Listof Integer)
+                 (Listof Integer)))
+(define (list-diff xs ys)
+  (remv* ys xs))
+
+(: list<? (-> (Listof Integer)
+              (Listof Integer)
+              Boolean))
+(define (list<? xs ys)
+  (match* (xs ys)
+    [((cons x xs-rst)
+      (cons y ys-rst))
+     (cond
+       [(< x y) #t]
+       [(= x y) (list<? xs-rst ys-rst)]
+       [else #f])]
+    [(_ (? pair?)) #t]
+    [(_ _) #f]))
 
 
 ; interpretation:
 ; DNF for base types can always be simplified
 ;; and represented as the following forms
 ;  (or b₁ b₂ ...) -- i.e. one of
-(def-struct BasePos ([bits : Integer]))
+(def-struct BasePos ([bits : (Listof Integer)]))
 ; or
 ; ¬(or b₁ b₂ ...)) -- i.e. none of
-(def-struct BaseNeg ([bits : Integer]))
+(def-struct BaseNeg ([bits : (Listof Integer)]))
 
 (define-type Base (U BasePos BaseNeg))
 
-(: -base-pos (-> Integer Base))
-(define (-base-pos bits)
-  (cond
-    [(eqv? bits #b1111111111111111)
-     (BaseNeg #b0)]
-    [else (BasePos bits)]))
+(: -base-pos (-> (Listof Integer) Base))
+(define -base-pos BasePos)
 
-(: -base-neg (-> Integer Base))
-(define (-base-neg bits)
-  (cond
-    [(eqv? bits #b1111111111111111)
-     (BasePos #b0)]
-    [else (BaseNeg bits)]))
+(: -base-neg (-> (Listof Integer) Base))
+(define -base-neg BaseNeg)
 
-(: -base-type (-> Integer Type))
+(: -base-type (-> (Listof Integer) Type))
 (define (-base-type b)
   (Type (-base-pos b) bot bot))
 
@@ -163,161 +202,163 @@
     [((BaseNeg _) (BasePos _)) #f]
     [((BasePos bits1)
       (BasePos bits2))
-     (< bits1 bits2)]
+     (list<? bits1 bits2)]
     [((BaseNeg bits1)
       (BaseNeg bits2))
-     (< bits1 bits2)]))
+     (list<? bits1 bits2)]))
 
-(define top-base (-base-neg #b0))
+(define top-base (-base-neg '()))
 (: Top-base? (-> Base Boolean))
 (define (Top-base? b)
   (equal? b top-base))
 
 
-(define bot-base (-base-pos #b0))
+(define bot-base (-base-pos '()))
 (: Bot-base? (-> Base Boolean))
 (define (Bot-base? b)
   (equal? b bot-base))
 
 
-;; 4 bits for non-numeric base types
-(define Unit (-base-type #b1))
-(define Str (-base-type #b10))
-(define T (-base-type #b100))
-(define F (-base-type #b1000))
+(define Unit (-base-type (list 0)))
+(define Str (-base-type (list 1)))
+(define T (-base-type (list 2)))
+(define F (-base-type (list 3)))
+(define NegInt<Int32-bits (list 4))
+(define Int32<Int16-bits (list 5))
+(define Int16<Int8-bits (list 6))
+(define Int8<Zero-bits (list 7))
+(define Zero-bits (list 8))
+(define Int8>Zero-bits (list 9))
+(define UInt8>Int8-bits (list 10))
+(define Int16>UInt8-bits (list 11))
+(define UInt16>Int16-bits (list 12))
+(define Int32>UInt16-bits (list 13))
+(define UInt32>Int32-bits (list 14))
+(define PosInt>UInt32-bits (list 15))
 
-;; bit 5 and greater for disjoint numeric types
-(define NegInt<Int32-bits  #b0000000000010000)
-(define Int32<Int16-bits   #b0000000000100000)
-(define Int16<Int8-bits    #b0000000001000000)
-(define Int8<Zero-bits     #b0000000010000000)
-(define Zero-bits          #b0000000100000000)
-(define Int8>Zero-bits     #b0000001000000000)
-(define UInt8>Int8-bits    #b0000010000000000)
-(define Int16>UInt8-bits   #b0000100000000000)
-(define UInt16>Int16-bits  #b0001000000000000)
-(define Int32>UInt16-bits  #b0010000000000000)
-(define UInt32>Int32-bits  #b0100000000000000)
-(define PosInt>UInt32-bits #b1000000000000000)
-;; now to define the numeric bases
-;; that use those bits
 (define UInt8
-  (-base-type (bitwise-ior Zero-bits
-                           Int8>Zero-bits
-                           UInt8>Int8-bits)))
+  (-base-type (sort (append Zero-bits
+                            Int8>Zero-bits
+                            UInt8>Int8-bits)
+                    <)))
 (define Int8
-  (-base-type (bitwise-ior Int8<Zero-bits
-                           Zero-bits
-                           Int8>Zero-bits)))
+  (-base-type (sort (append Int8<Zero-bits
+                            Zero-bits
+                            Int8>Zero-bits)
+                    <)))
 (define UInt16
-  (-base-type (bitwise-ior Zero-bits
-                           Int8>Zero-bits
-                           UInt8>Int8-bits
-                           Int16>UInt8-bits
-                           UInt16>Int16-bits)))
+  (-base-type (sort (append Zero-bits
+                            Int8>Zero-bits
+                            UInt8>Int8-bits
+                            Int16>UInt8-bits
+                            UInt16>Int16-bits)
+                    <)))
 (define Int16
-  (-base-type (bitwise-ior Int16<Int8-bits
-                           Int8<Zero-bits
-                           Zero-bits
-                           Int8>Zero-bits
-                           UInt8>Int8-bits
-                           Int16>UInt8-bits)))
+  (-base-type (sort (append Int16<Int8-bits
+                            Int8<Zero-bits
+                            Zero-bits
+                            Int8>Zero-bits
+                            UInt8>Int8-bits
+                            Int16>UInt8-bits)
+                    <)))
 (define UInt32
-  (-base-type (bitwise-ior Zero-bits
-                           Int8>Zero-bits
-                           UInt8>Int8-bits
-                           Int16>UInt8-bits
-                           UInt16>Int16-bits
-                           Int32>UInt16-bits
-                           UInt32>Int32-bits)))
+  (-base-type (append Zero-bits
+                      Int8>Zero-bits
+                      UInt8>Int8-bits
+                      Int16>UInt8-bits
+                      UInt16>Int16-bits
+                      Int32>UInt16-bits
+                      UInt32>Int32-bits)))
 (define Int32
-  (-base-type (bitwise-ior Int32<Int16-bits
-                           Int16<Int8-bits
-                           Int8<Zero-bits
-                           Zero-bits
-                           Int8>Zero-bits
-                           UInt8>Int8-bits
-                           Int16>UInt8-bits
-                           UInt16>Int16-bits
-                           Int32>UInt16-bits
-                           UInt32>Int32-bits)))
+  (-base-type (sort (append Int32<Int16-bits
+                            Int16<Int8-bits
+                            Int8<Zero-bits
+                            Zero-bits
+                            Int8>Zero-bits
+                            UInt8>Int8-bits
+                            Int16>UInt8-bits
+                            UInt16>Int16-bits
+                            Int32>UInt16-bits
+                            UInt32>Int32-bits)
+                    <)))
 
 (define PosInt
-  (-base-type (bitwise-ior Int8>Zero-bits
-                           UInt8>Int8-bits
-                           Int16>UInt8-bits
-                           UInt16>Int16-bits
-                           Int32>UInt16-bits
-                           PosInt>UInt32-bits)))
+  (-base-type (sort (append Int8>Zero-bits
+                            UInt8>Int8-bits
+                            Int16>UInt8-bits
+                            UInt16>Int16-bits
+                            Int32>UInt16-bits
+                            PosInt>UInt32-bits)
+                    <)))
 
 (define Nat
-  (-base-type (bitwise-ior Zero-bits
-                           Int8>Zero-bits
-                           UInt8>Int8-bits
-                           Int16>UInt8-bits
-                           UInt16>Int16-bits
-                           Int32>UInt16-bits
-                           PosInt>UInt32-bits)))
+  (-base-type (sort (append Zero-bits
+                            Int8>Zero-bits
+                            UInt8>Int8-bits
+                            Int16>UInt8-bits
+                            UInt16>Int16-bits
+                            Int32>UInt16-bits
+                            PosInt>UInt32-bits)
+                    <)))
 
 (define NegInt
-  (-base-type (bitwise-ior NegInt<Int32-bits
-                           Int32<Int16-bits
-                           Int16<Int8-bits
-                           Int8<Zero-bits)))
+  (-base-type (sort (append NegInt<Int32-bits
+                            Int32<Int16-bits
+                            Int16<Int8-bits
+                            Int8<Zero-bits)
+                    <)))
 
 (define Int
-  (-base-type (bitwise-ior NegInt<Int32-bits
-                           Int32<Int16-bits
-                           Int16<Int8-bits
-                           Int8<Zero-bits
-                           Zero-bits
-                           Int8>Zero-bits
-                           UInt8>Int8-bits
-                           Int16>UInt8-bits
-                           UInt16>Int16-bits
-                           Int32>UInt16-bits
-                           PosInt>UInt32-bits)))
+  (-base-type (sort (append NegInt<Int32-bits
+                            Int32<Int16-bits
+                            Int16<Int8-bits
+                            Int8<Zero-bits
+                            Zero-bits
+                            Int8>Zero-bits
+                            UInt8>Int8-bits
+                            Int16>UInt8-bits
+                            UInt16>Int16-bits
+                            Int32>UInt16-bits
+                            PosInt>UInt32-bits)
+                    <)))
 
-                         
-(define-syntax-rule (bitwise-subtract b1 b2)
-  (bitwise-and b1 (bitwise-not b2)))
 
 (: -base-or (-> Base Base Base))
 (define (-base-or b1 b2)
   (match* (b1 b2)
     [((BasePos pos1) (BasePos pos2))
-     (-base-pos (bitwise-ior pos1 pos2))]
+     (-base-pos (list-or pos1 pos2))]
     [((BaseNeg neg1) (BaseNeg neg2))
-     (-base-neg (bitwise-and neg1 neg2))]
+     (-base-neg (list-and neg1 neg2))]
     [((BasePos pos) (BaseNeg neg))
-     (-base-neg (bitwise-subtract neg pos))]
+     (-base-neg (list-diff neg pos))]
     [((BaseNeg neg) (BasePos pos))
-     (-base-neg (bitwise-subtract neg pos))]))
+     (-base-neg (list-diff neg pos))]))
 
 (: -base-and (-> Base Base Base))
 (define (-base-and t1 t2)
   (match* (t1 t2)
     [((BasePos pos1) (BasePos pos2))
-     (-base-pos (bitwise-and pos1 pos2))]
+     (-base-pos (list-and pos1 pos2))]
     [((BaseNeg neg1) (BaseNeg neg2))
-     (-base-neg (bitwise-ior neg1 neg2))]
+     (-base-neg (list-or neg1 neg2))]
     [((BasePos pos) (BaseNeg neg))
-     (-base-pos (bitwise-subtract pos neg))]
+     (-base-pos (list-diff pos neg))]
     [((BaseNeg neg) (BasePos pos))
-     (-base-pos (bitwise-subtract pos neg))]))
+     (-base-pos (list-diff pos neg))]))
 
 
 (: -base-diff (-> Base Base Base))
 (define (-base-diff b1 b2)
   (match* (b1 b2)
     [((BasePos pos1) (BasePos pos2))
-     (-base-pos (bitwise-subtract pos1 pos2))]
+     (-base-pos (list-diff pos1 pos2))]
     [((BaseNeg neg1) (BaseNeg neg2))
-     (-base-pos (bitwise-subtract neg2 neg1))]
+     (-base-pos (list-diff neg2 neg1))]
     [((BasePos pos) (BaseNeg neg))
-     (-base-pos (bitwise-and pos neg))]
+     (-base-pos (list-and pos neg))]
     [((BaseNeg neg) (BasePos pos))
-     (-base-neg (bitwise-ior pos neg))]))
+     (-base-neg (list-or pos neg))]))
 
 (: -base-not (-> Base Base))
 (define (-base-not b)
