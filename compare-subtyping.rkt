@@ -11,7 +11,9 @@
                            lbdd:->Type
                            lbdd:subtype?)
 
-(syntactic-subtype-timing lbdd:->Type
-                          lbdd:subtype?
+(syntactic-subtype-timing 'syntactic
                           syn:->Type
-                          syn:subtype?)
+                          syn:subtype?
+                          'semantic
+                          lbdd:->Type
+                          lbdd:subtype?)
