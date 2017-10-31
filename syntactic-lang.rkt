@@ -15,7 +15,7 @@
 
 
 (define-type Atom (U Tag Prod Arrow))
-(define-type Type (U Atom Or And Not))
+(define-type Type (U Atom Or Univ))
 
 (define-type Tag Symbol)
 (def-struct Prod ([l : Type]
@@ -23,8 +23,7 @@
 (def-struct Arrow ([dom : Type]
                    [rng : Type]))
 (def-struct Or ([ts : (Setof Type)]))
-(def-struct And ([ts : (Setof Type)]))
-(def-struct Not ([t : Type]))
+(def-struct Univ ())
 
 (: -or (-> Type * Type))
 (define (-or . initial-ts)
@@ -33,66 +32,19 @@
     (match todo
       [(cons (Or ts*) ts)
        (loop ts (append (set->list ts*) result))]
+      [(cons (? Univ?) ts) (Univ)]
+      [(cons t ts)
+       (loop ts (cons t result))]
       [_ (Or (list->set result))])))
 
-(: -and (-> Type * Type))
-(define (-and . initial-ts)
-  (let loop ([todo   : (Listof Type) initial-ts]
-             [tags   : (Setof Tag) (set)]
-             [prod  : (U #f Prod) #f]
-             [arrows : (Setof Arrow) (set)]
-             [ors    : (Listof Type) '()])
-    (match todo
-      [(cons (? Tag? t) ts)
-       (loop ts (set-add tags t) prod arrows ors)]
-      [(cons (Prod t1 t2) ts)
-       (loop ts
-             tags
-             (match prod
-               [#f (Prod t1 t2)]
-               [(Prod t1* t2*) (Prod (-and t1 t1*)
-                                     (-and t2 t2*))])
-             arrows
-             ors)]
-      [(cons (? Arrow? t) ts)
-       (loop ts tags prod (set-add arrows t) ors)]
-      [(cons (? Or? t) ts)
-       (loop ts tags prod arrows (cons t ors))]
-      [_
-       (cond
-         [(> (set-count tags) 0)
-          (cond
-            [(or (> (set-count tags) 1)
-                 prod
-                 (> (set-count arrows) 0))
-             Empty]
-            [else (set-first tags)])]
-         [prod
-          (cond
-            [(> (set-count arrows) 0)
-             Empty]
-            [else prod])]
-         [(> (set-count arrows) 0)
-          (And arrows)]
-         [(> (length ors) 0) (And (list->set ors))]
-         [else (And (set))])])))
-
-(: -not (-> Type Type))
-(define (-not t)
-  (match t
-    [(And ts) (Or (list->set (set-map ts -not)))]
-    [(Or ts) (And (list->set (set-map ts -not)))]
-    [(Not t) t]
-    [_ (Not t)]))
 
 ;(struct Var ())
 ;(struct Rec ([x : Var] [t : Atom]) #:transparent)
 
-(define Univ (And (set)))
 (define Empty (Or (set)))
 
-(define UnivProd (Prod Univ Univ))
-(define UnivArrow (Arrow Empty Univ))
+(define UnivProd (Prod (Univ) (Univ)))
+(define UnivArrow (Arrow Empty (Univ)))
 
 ;; 4 bits for non-numeric base types
 (define Unit 'Unit)
@@ -194,7 +146,7 @@
        PosInt>UInt32-bits))
 
 
-(define UnivTag (Not (-or UnivProd UnivArrow Int)))
+
 
 (define Bool (-or T F))
 (define Tag? symbol?)
@@ -206,20 +158,15 @@
 (: subtype? (-> Type Type Boolean))
 (define (subtype? t1 t2)
   (match* (t1 t2)
-    [(t t) #t]
-    [(_ (And ts))
-     (for/and : Boolean ([t (in-set ts)])
-       (subtype? t1 t))]
-    [((And ts) _)
-     (for/or : Boolean ([t (in-set ts)])
-       (subtype? t t2))]
-    [((Or ts) _)
+    [(_ _) #:when (equal? t1 t2) #t]
+    [(_ (? Univ?)) #t]
+    [((Or ts) t2)
      (for/and : Boolean ([t (in-set ts)])
        (subtype? t t2))]
-    [(_ (Or ts))
+    [(t1 (Or ts))
      (or (set-member? ts t1)
          (for/or : Boolean ([t (in-set ts)])
-           (subtype? t t2)))]
+           (subtype? t1 t)))]
     [((Prod t1 t2) (Prod s1 s2))
      (and (subtype? t1 s1)
           (subtype? t2 s2))]
@@ -233,7 +180,7 @@
 (: ->Type (-> TypeSexp Type))
 (define (->Type sexp)
   (match sexp
-    ['Univ Univ]
+    ['Univ (Univ)]
     ['Empty Empty]
     ['Unit Unit]
     ['Bool Bool]
@@ -254,8 +201,6 @@
     ['Int32 Int32]
     [`(Prod ,l ,r) (Prod (->Type l) (->Type r))]
     [`(Arrow ,dom ,rng) (Arrow (->Type dom) (->Type rng))]
-    [`(Or . ,ts) (apply -or (map ->Type ts))]
-    [`(And . ,ts) (apply -and (map ->Type ts))]
-    [`(Not ,t) (Not (->Type t))]))
+    [`(Or . ,ts) (apply -or (map ->Type ts))]))
 
 ;|#

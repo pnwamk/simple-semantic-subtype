@@ -1,11 +1,13 @@
 #lang typed/racket/base
 
 (require racket/match
+         racket/list
          "tunit.rkt"
          "grammar.rkt")
 
 (provide run-subtype-tests
-         compare-subtype-functions)
+         compare-subtype/random-types
+         syntactic-subtype-timing)
 
 (define Empty : TypeSexp 'Empty)
 (define Univ : TypeSexp 'Univ)
@@ -67,13 +69,13 @@
              [(zero? (random 10)) (Not ty)]
              [else ty]))]))))
 
-(: compare-subtype-functions (All (X Y) (-> Natural
+(: compare-subtype/random-types (All (X Y) (-> Natural
                                             (-> TypeSexp X)
                                             (-> X X Boolean)
                                             (-> TypeSexp Y)
                                             (-> Y Y Boolean)
                                             Void)))
-(define (compare-subtype-functions iters ->type1 subtype1? ->type2 subtype2?)
+(define (compare-subtype/random-types iters ->type1 subtype1? ->type2 subtype2?)
   (: run-test (-> Natural Void))
   (define (run-test fuel)
     (let* ([ty1 (random-type fuel)]
@@ -323,6 +325,127 @@
     (display-test-results)))
 
 
+
+(: syntactic-subtype-timing (All (X Y) (-> (-> TypeSexp X)
+                                           (-> X X Boolean)
+                                           (-> TypeSexp Y)
+                                           (-> Y Y Boolean)
+                                           Void)))
+(define (syntactic-subtype-timing ->type1 subtype1?
+                                  ->type2 subtype2?)
+  (: single-test (-> Natural
+                     Symbol
+                     (Listof (List TypeSexp TypeSexp))
+                     Void))
+  (define (single-test iters test-name types)
+    (define lhs (map (ann first  (-> (List TypeSexp TypeSexp) TypeSexp)) types))
+    (define rhs (map (ann second (-> (List TypeSexp TypeSexp) TypeSexp)) types))
+    (eprintf "test:~a:1 (~a iterations)\n" test-name iters)
+    (define res1
+      (let ([ls (map ->type1 lhs)]
+            [rs (map ->type1 rhs)])
+        (collect-garbage)
+        (collect-garbage)
+        (collect-garbage)
+        (time (for ([_ (in-range iters)])
+                (for ([l (in-list ls)]
+                      [r (in-list rs)])
+                  (subtype1? l r)))
+              (map subtype1? ls rs))))
+    (eprintf "test:~a:2 (~a iterations)\n" test-name iters)
+    (define res2
+      (let ([ls (map ->type2 lhs)]
+            [rs (map ->type2 rhs)])
+        (collect-garbage)
+        (collect-garbage)
+        (collect-garbage)
+        (time (for ([_ (in-range iters)])
+                (for ([l (in-list ls)]
+                      [r (in-list rs)])
+                  (subtype2? l r)))
+              (map subtype2? ls rs))))
+    (unless (equal? res1 res2)
+      (error 'single-test "got ~a/~a with input ~a\n"
+             res1 res2 types)))
+
+
+  (single-test 10000
+               'atoms
+               '([Int Int]
+                 [Int Str]
+                 [Empty Str]
+                 [Str Empty]
+                 [Int Univ]
+                 [Univ Int]))
+
+
+  (single-test 1000
+               'unions-subset
+               '([(Or Unit Str)
+                  (Or Unit Str Bool)]
+                 [(Or Str Bool (Prod Unit Unit))
+                  (Or Str Bool Unit (Prod Unit Unit) (Prod Str Str))]
+                 [(Or Int Str Bool (Prod Int Int) (Prod Str Str) (Prod Unit Unit))
+                  (Or Int Str Bool Unit (Prod Int Int) (Prod Str Str))]
+                 [(Or Int Str Bool
+                      (Prod Int Int)
+                      (Prod Str Str)
+                      (Prod Unit Unit)
+                      (Arrow Str Str))
+                  (Or Int Str Bool Unit
+                      (Prod Int Int)
+                      (Prod Str Str)
+                      (Prod Unit Unit)
+                      (Prod Bool Bool)
+                      (Arrow Str Str)
+                      (Arrow Bool Bool))]))
+
+
+  (single-test 1000
+               'unions-subtype
+               '([(Or (Prod T F) (Arrow T F))
+                  (Or (Prod Bool Bool) (Arrow Bool Bool))]
+                 [(Or (Prod T F) (Prod F T) (Arrow T F) (Arrow F T))
+                  (Or (Prod Bool Bool) (Arrow Bool Bool))]
+                 [(Or (Prod T F) (Prod F T) (Arrow T F) (Arrow F T)
+                      (Prod Bool Bool) (Arrow Bool Bool))
+                  (Or (Prod (Or Unit Bool)
+                            (Or Unit Bool))
+                      (Arrow (Or Unit Bool)
+                             (Or Unit Bool)))]
+                 [(Or (Prod T F) (Prod F T) (Arrow T F) (Arrow F T)
+                      (Prod Bool Bool)
+                      (Arrow Bool Bool)
+                      (Prod (Prod T F) (Prod T F)))
+                  (Or (Prod (Or Unit Bool)
+                            (Or Unit Bool))
+                      (Prod (Prod (Or Unit Bool)
+                                  (Or Unit Bool))
+                            (Prod (Or Unit Bool)
+                                  (Or Unit Bool)))
+                      (Prod Int Int)
+                      (Prod Str Str)
+                      (Arrow (Or Unit Bool)
+                             (Or Unit Bool))
+                      (Arrow Int Int))]
+                 [(Or (Prod T F) (Prod F T) (Arrow T F) (Arrow F T)
+                      (Prod Bool Bool)
+                      (Arrow Bool Bool)
+                      (Prod (Prod (Prod T F)
+                                  (Prod T F))
+                            (Prod (Prod T F)
+                                  (Prod T F))))
+                  (Or (Prod (Or Unit Bool)
+                            (Or Unit Bool))
+                      (Prod (Prod (Or Unit Bool)
+                                  (Or Unit Bool))
+                            (Prod (Or Unit Bool)
+                                  (Or Unit Bool)))
+                      (Prod Int Int)
+                      (Prod Str Str)
+                      (Arrow (Or Unit Bool)
+                             (Or Unit Bool))
+                      (Arrow Int Int))])))
 
 
 
