@@ -549,6 +549,7 @@
                  bot
                  (-and (-or r1 u1)
                        (-or r2 u2)))])])))
+
 (: -neg (All (X) (-> (BDD X) (BDD X))))
 (define (-neg b)
   (with-parameterized-ops X (-node -neg -or)
@@ -639,12 +640,22 @@
 (define (subtype? t1 t2)
   (empty-Type? (Diff t1 t2)))
 
+(define empty-cache : (Weak-HashTable Fixnum Boolean) (make-weak-hasheq))
+
 (: empty-Type? (-> Type Boolean))
 (define (empty-Type? t)
-  (match-define (Type base prod arrow) t)
-  (and (Bot-base? base)
-       (empty-Prod? prod Univ Univ (list))
-       (empty-Arrow? arrow Empty (list) (list))))
+  (define h (equal-hash-code t))
+  (define cached (hash-ref empty-cache h (λ () 'missing)))
+  (cond
+    [(eq? 'missing cached)
+     (match-define (Type base prod arrow) t)
+     (define res
+       (and (Bot-base? base)
+            (empty-Prod? prod Univ Univ (list))
+            (empty-Arrow? arrow Empty (list) (list))))
+     (hash-set! empty-cache h res)
+     res]
+    [else cached]))
 
 
 (: empty-Prod? (-> (BDD Prod) Type Type (Listof Prod)
