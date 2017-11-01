@@ -84,11 +84,11 @@
            [t12 (->type1 ty2)]
            [t21 (->type2 ty1)]
            [t22 (->type2 ty2)])
-      (eprintf "type 1: ~a\n type 2: ~a\n" ty1 ty2)
+      (printf "type 1: ~a\n type 2: ~a\n" ty1 ty2)
       (collect-garbage)
       (collect-garbage)
       (collect-garbage)
-      (eprintf "fuel: ~a, subtype1 (x10):\n" fuel)
+      (printf "fuel: ~a, subtype1 (x10):\n" fuel)
       (define res1
         (time (for ([_ (in-range 9)])
                 (subtype1? t12 t11)
@@ -98,7 +98,7 @@
       (collect-garbage)
       (collect-garbage)
       (collect-garbage)
-      (eprintf "fuel: ~a, subtype2 (x10):\n" fuel)
+      (printf "fuel: ~a, subtype2 (x10):\n" fuel)
       (define res2
         (time (for ([_ (in-range 9)])
                 (subtype2? t21 t22)
@@ -358,10 +358,10 @@
            (for ([_ (in-range iters)])
              (subtype? l r))))
         (map subtype? ls rs)))
-    (eprintf "test:~a:~a (~a iterations)\n" test-name name1 iters)
+    (printf "test:~a:~a (~a iterations)\n" test-name name1 iters)
     (define res1
       (test name1 ->type1 subtype1?))
-    (eprintf "test:~a:~a (~a iterations)\n" test-name name2 iters)
+    (printf "test:~a:~a (~a iterations)\n" test-name name2 iters)
     (define res2
       (test name2 ->type2 subtype2?))
     (unless (equal? res1 res2)
