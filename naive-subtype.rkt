@@ -1,20 +1,46 @@
 #lang typed/racket/base
 
+;; A naive implementation of the semantic subtyping algorithm
+;; and DNF representation of set theoretic types presented
+;; in "Covariance and Contravariance: a fresh look at an
+;; old issue", section 4.
+;;
+;; i.e. we just use lists and structs to represent the various
+;; types and constructors, and we do not use BDDs or the
+;; various Φ functions that are given for more efficiently
+;; deciding subtyping for products and arrows
+
+
+
+
 (require racket/list
          racket/match
          "simple-lang.rkt"
-         "list-set-utils.rkt"
          "tunit.rkt"
          "subtype-test-suite.rkt")
 
 
 (provide ->Type subtype?)
 
+
+
+(: powerset (All (X) (-> (Listof X) (Listof (Listof X)))))
+(define (powerset s)
+  (cond
+    [(pair? s)
+     (define x (car s))
+     (define psets (powerset (cdr s)))
+     (append psets (map (λ ([pset : (Listof X)]) (cons x pset))
+                        psets))]
+    [else (list s)]))
+
+
+
 (define-type Literal (U Atom (Not Atom)))
 (define-predicate Literal? Literal)
 (define-type Clause (U Literal (And Literal)))
 (define-type DNF (U Clause (Or Clause)))
-
+ 
 (: ->DNF (-> Type DNF))
 (define (->DNF t)
   (match t
@@ -31,54 +57,57 @@
     [(? Atom? a) (Not a)]
     [(Not a) a]))
 
-(: DNF-And-map (-> (-> Type DNF) (Setof Type) DNF))
+(: DNF-And-map (-> (-> Type DNF) (Listof Type) DNF))
 (define (DNF-And-map f ts)
-  (let loop ([todo : (Setof Type) ts]
-             [ors : (Setof (Or Clause)) (set)]
-             [result : (Setof Literal) (set)])
+  (let loop ([todo : (Listof Type) ts]
+             [ors : (Listof (Or Clause)) (list)]
+             [result : (Listof Literal) (list)])
     (match todo
       [(list)
-       (match ors
-         [(list) (if (= 1 (set-count result))
-                     (car result)
-                     (And result))]
-         [(cons (Or or-ts) rst)
-          (define and-ts (append rst result))
-          (->DNF (Or (map (λ ([t : Type]) (And (set-add and-ts t)))
-                          or-ts)))])]
+       (let ([result (remove-duplicates result)]
+             [ors (remove-duplicates ors)])
+         (match ors
+           [(list) (if (= 1 (length result))
+                       (car result)
+                       (And result))]
+           [(cons (Or or-ts) rst)
+            (define and-ts (append rst result))
+            (->DNF (Or (map (λ ([t : Type]) (And (cons t and-ts)))
+                            or-ts)))]))]
       [(cons (app f t) rst)
        (match t
          [(? Literal? l)
-          (loop rst ors (set-add result l))]
+          (loop rst ors (cons l result))]
          [(And ls)
           (loop rst ors (append ls result))]
          [(? Or? d)
-          (loop rst (set-add ors d) result)])])))
+          (loop rst (cons d ors) result)])])))
 
-(: DNF-Or-Map (-> (-> Type DNF) (Setof Type) DNF))
+(: DNF-Or-Map (-> (-> Type DNF) (Listof Type) DNF))
 (define (DNF-Or-Map f ts)
-  (let loop ([todo : (Setof Type) ts]
-             [result : (Setof Clause) (set)])
+  (let loop ([todo : (Listof Type) ts]
+             [result : (Listof Clause) (list)])
     (match todo
-      [(list) (if (= 1 (set-count result))
-                  (first result)
-                  (Or result))]
+      [(list) (let ([result (remove-duplicates result)])
+                (if (= 1 (length result))
+                    (first result)
+                    (Or result)))]
       [(cons (app f d) rst)
        (cond
          [(Or? d) (loop rst (append (Or-ts d) result))]
-         [else (loop rst (set-add result d))])])))
+         [else (loop rst (cons d result))])])))
 
 (: subtype? (-> Type Type Boolean))
 (define (subtype? t1 t2)
   (empty-DNF?
-   (->DNF (And (set t1 (Not t2))))))
+   (->DNF (And (list t1 (Not t2))))))
 
 (: empty-DNF? (-> DNF Boolean))
 (define (empty-DNF? d)
   (match d
     [(? Literal? l) (empty-DNF-clause? l)]
     [(? And? clause) (empty-DNF-clause? clause)]
-    [(Or cs) (forall empty-DNF-clause? cs)]))
+    [(Or cs) (andmap empty-DNF-clause? cs)]))
 
 (: empty-DNF-clause? (-> Clause Boolean))
 (define (empty-DNF-clause? clause)
@@ -89,34 +118,34 @@
      (define-values (Ptag Pprod Parrow)
        (extract-positive-literals P))
      (cond
-       [(non-empty-set? Ptag)
+       [(not (null? Ptag))
         (cond
-          [(or (non-empty-set? Pprod)
-               (non-empty-set? Parrow))
+          [(or (not (null? Pprod))
+               (not (null? Parrow)))
            #t]
           [else
            (uninhabitited-Tag-clause? Ptag (filter Not-Tag? ls))])]
-       [(non-empty-set? Pprod)
+       [(not (null? Pprod))
         (cond
-          [(non-empty-set? Parrow) #t]
+          [(not (null? Parrow)) #t]
           [else
            (uninhabitited-Prod-clause? Pprod (filter Not-Prod? ls))])]
-       [(non-empty-set? Parrow)
+       [(not (null? Parrow))
         (uninhabitited-Arrow-clause? Parrow (filter Not-Arrow? ls))]
        [else #f])]))
 
-(: extract-positive-literals (-> (Setof Atom)
-                                 (values (Setof Tag)
-                                         (Setof Prod)
-                                         (Setof Arrow))))
+(: extract-positive-literals (-> (Listof Atom)
+                                 (values (Listof Tag)
+                                         (Listof Prod)
+                                         (Listof Arrow))))
 (define (extract-positive-literals P)
-  (let loop : (values (Setof Tag)
-                      (Setof Prod)
-                      (Setof Arrow))
-    ([todo : (Setof Atom) P]
-     [Ptag : (Setof Tag) (set)]
-     [Pprod : (Setof Prod) (set)]
-     [Parrow : (Setof Arrow) (set)])
+  (let loop : (values (Listof Tag)
+                      (Listof Prod)
+                      (Listof Arrow))
+    ([todo : (Listof Atom) P]
+     [Ptag : (Listof Tag) (list)]
+     [Pprod : (Listof Prod) (list)]
+     [Parrow : (Listof Arrow) (list)])
     (match todo
       [(list) (values Ptag Pprod Parrow)]
       [(cons a as)
@@ -127,51 +156,51 @@
 
 
 (: uninhabitited-Tag-clause?
-   (-> (Setof Tag) (Setof (Not Tag)) Boolean))
+   (-> (Listof Tag) (Listof (Not Tag)) Boolean))
 (define (uninhabitited-Tag-clause? P N)
   (cond
-    [(< 1 (set-count (remove-duplicates P)))
+    [(< 1 (length (remove-duplicates P)))
      #true]
     [else
-     (exists (λ ([n : (Not Tag)]) (set-member? P (Not-t n)))
-             N)]))
+     (ormap (λ ([n : (Not Tag)]) (and (member (Not-t n) P) #t))
+            N)]))
 
 
 (: uninhabitited-Prod-clause?
-   (-> (Setof Prod) (Setof (Not Prod)) Boolean))
+   (-> (Listof Prod) (Listof (Not Prod)) Boolean))
 (define (uninhabitited-Prod-clause? P N)
   (let ([s1 (And (map Prod-l P))]
         [s2 (And (map Prod-r P))])
-    (forall
-     (λ ([N* : (Setof (Not Prod))])
+    (andmap
+     (λ ([N* : (Listof (Not Prod))])
        (or (let ([t1 (Or (map (λ ([p : (Not Prod)])
                                 (Prod-l (Not-t p)))
                               N*))])
              (subtype? s1 t1))
-           (let* ([N-N* (set-diff N N*)]
+           (let* ([N-N* (remove* N* N)]
                   [t2 (Or (map (λ ([p : (Not Prod)])
                                  (Prod-r (Not-t p)))
                                N-N*))])
              (subtype? s2 t2))))
-     (subsets N))))
+     (powerset N))))
 
 
 
 (: uninhabitited-Arrow-clause?
-   (-> (Setof Arrow) (Setof (Not Arrow)) Boolean))
+   (-> (Listof Arrow) (Listof (Not Arrow)) Boolean))
 (define (uninhabitited-Arrow-clause? P N)
   (let ([dom (Or (map Arrow-dom P))])
-    (exists (λ ([na : (Not Arrow)])
-              (let ([t1 (Arrow-dom (Not-t na))]
-                    [t2 (Arrow-rng (Not-t na))])
-                (and (subtype? t1 dom)
-                     (forall (λ ([P* : (Setof Arrow)])
-                               (or (let ([s1 (Or (map Arrow-dom P*))])
-                                     (subtype? t1 s1))
-                                   (let ([s2 (And (map Arrow-rng (set-diff P P*)))])
-                                     (subtype? s2 t2))))
-                             (strict-subsets P)))))
-            N)))
+    (ormap (λ ([na : (Not Arrow)])
+             (let ([t1 (Arrow-dom (Not-t na))]
+                   [t2 (Arrow-rng (Not-t na))])
+               (and (subtype? t1 dom)
+                    (andmap (λ ([P* : (Listof Arrow)])
+                              (or (let ([s1 (Or (map Arrow-dom P*))])
+                                    (subtype? t1 s1))
+                                  (let ([s2 (And (map Arrow-rng (remove* P* P)))])
+                                    (subtype? s2 t2))))
+                            (remove P (powerset P))))))
+           N)))
 
 (module+ test
   (run-subtype-tests ->Type subtype?))

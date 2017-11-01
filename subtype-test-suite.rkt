@@ -3,7 +3,7 @@
 (require racket/match
          racket/list
          "tunit.rkt"
-         "grammar.rkt")
+         "type-grammar.rkt")
 
 (provide run-subtype-tests
          compare-subtype/random-types

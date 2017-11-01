@@ -1,8 +1,17 @@
 #lang typed/racket/base
 
+;; A straightforward, syntactic subtyping algorithm
+;; for a subset of the set theoretic types described
+;; in "grammar.rkt".
+;;
+;; This is used as a general comparison to see how
+;; semantic subtyping performance compares against
+;; simple syntactic approaches.
+
+
 (require racket/match
          racket/set
-         "grammar.rkt")
+         "type-grammar.rkt")
 
 (provide (all-defined-out))
 
@@ -153,28 +162,6 @@
 
 
 (define-predicate Atom? Atom)
-
-
-(: subtype? (-> Type Type Boolean))
-(define (subtype? t1 t2)
-  (match* (t1 t2)
-    [(_ _) #:when (equal? t1 t2) #t]
-    [(_ (? Univ?)) #t]
-    [((Or ts) t2)
-     (for/and : Boolean ([t (in-set ts)])
-       (subtype? t t2))]
-    [(t1 (Or ts))
-     (or (set-member? ts t1)
-         (for/or : Boolean ([t (in-set ts)])
-           (subtype? t1 t)))]
-    [((Prod t1 t2) (Prod s1 s2))
-     (and (subtype? t1 s1)
-          (subtype? t2 s2))]
-    [((Arrow t1 t2) (Arrow s1 s2))
-     (and (subtype? s1 t1)
-          (subtype? t2 s2))]
-    [(_ _) #f]))
-
 
 
 (: ->Type (-> TypeSexp Type))

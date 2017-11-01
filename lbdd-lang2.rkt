@@ -1,11 +1,19 @@
 #lang typed/racket/base
 
+;; An implementation of the binary decision diagram (BDD)
+;; with lazy unions representation of DNF set-theoretic types
+;; from "Covariance and Contravariance: a fresh look at an
+;; old issue" (section 4) that computes and caches hash codes
+;; ahead of time to reduce the cost of calculating hash
+;; codes and equality while subtyping and calculating
+;; and/or/diff of types.
+
 (require racket/match
          (only-in racket/unsafe/ops
                   unsafe-fx<
                   unsafe-fxxor
                   unsafe-fx*)
-         "grammar.rkt"
+         "type-grammar.rkt"
          "subtype-test-suite.rkt"
          "tunit.rkt")
 
@@ -690,114 +698,6 @@
 
 
 
-;
-;
-;
-;     ;;;;            ;
-;   ;;   ;;           ;          ;
-;   ;                 ;          ;
-;   ;        ;     ;  ; ;;;    ;;;;;;   ;     ;  ; ;;;      ;;;
-;   ;;       ;     ;  ;;   ;     ;       ;   ;;  ;;   ;    ;   ;
-;     ;;;    ;     ;  ;     ;    ;       ;   ;   ;     ;  ;     ;
-;        ;;  ;     ;  ;     ;    ;       ;   ;   ;     ;  ;     ;
-;         ;  ;     ;  ;     ;    ;        ; ;;   ;     ;  ;;;;;;;
-;   ;     ;  ;     ;  ;     ;    ;        ; ;    ;     ;  ;
-;   ;;   ;;  ;;   ;;  ;;   ;     ;         ;;    ;;   ;    ;    ;
-;    ;;;;;    ;;;; ;  ; ;;;       ;;;      ;;    ; ;;;      ;;;;
-;                                          ;     ;
-;                                          ;     ;
-;                                        ;;      ;
-;
-
-
-
-(: subtype? (-> Type Type Boolean))
-(define (subtype? t1 t2)
-  (empty-Type? (Diff t1 t2)))
-
-(define empty-type-cache
-  : (Mutable-HashTable Fixnum (Listof (Pairof Type Boolean)))
-  (make-hasheq))
-
-(: empty-Type? (-> Type Boolean))
-(define (empty-Type? t)
-  (define hc (Rep-hash-code t))
-  (define bucket (hash-ref empty-type-cache hc #f))
-  (cond
-    [(and bucket (assoc t bucket)) => cdr]
-    [else
-     (match-define (Type _ base prod arrow) t)
-     (define res
-       (and (Bot-base? base)
-            (empty-Prod? prod Univ Univ (list))
-            (empty-Arrow? arrow Empty (list) (list))))
-     (hash-set! empty-type-cache
-                hc
-                (if bucket
-                    (cons (cons t res) bucket)
-                    (list (cons t res))))
-     res]))
-
-
-(: empty-Prod? (-> (BDD Prod) Type Type (Listof Prod)
-                   Boolean))
-(define (empty-Prod? t s1 s2 N)
-  (match t
-    [(? Top?) (or (empty-Type? s1)
-                  (empty-Type? s2)
-                  (Prod-Phi s1 s2 N))]
-    [(? Bot?) #t]
-    [(Node _ (and p (Prod _ t1 t2)) l u r)
-     (and (empty-Prod? l (And s1 t1) (And s2 t2) N)
-          (empty-Prod? u s1 s2 N)
-          (empty-Prod? r s1 s2 (cons p N)))]))
-
-(: Prod-Phi (-> Type Type (Listof Prod) Boolean))
-(define (Prod-Phi s1 s2 N)
-  (match N
-    [(cons (Prod _ t1 t2) N)
-     (and (let ([s1* (Diff s1 t1)])
-            (or (empty-Type? s1*)
-                (Prod-Phi s1* s2 N)))
-          (let ([s2* (Diff s2 t2)])
-            (or (empty-Type? s2*)
-                (Prod-Phi s1 s2* N))))]
-    [_ #f]))
-
-
-(: empty-Arrow? (-> (BDD Arrow) Type (Listof Arrow) (Listof Arrow)
-                    Boolean))
-(define (empty-Arrow? t dom P N)
-  (match t
-    [(? Top?) (ormap (match-lambda
-                       [(Arrow _ t1 t2)
-                        (and (subtype? t1 dom)
-                             (Arrow-Phi t1 (Not t2) P))])
-                     N)]
-    [(? Bot?) #t]
-    [(Node _ (and a (Arrow _ s1 s2)) l u r)
-     (and (empty-Arrow? l (Or s1 dom) (cons a P) N)
-          (empty-Arrow? u dom P N)
-          (empty-Arrow? r dom P (cons a N)))]))
-
-
-(: Arrow-Phi (-> Type Type (Listof Arrow)
-                 Boolean))
-(define (Arrow-Phi t1 t2 P)
-  (match P
-    [(cons (Arrow _ s1* s2*) P)
-     (let ([t1* (Diff t1 s1*)])
-       (and (or (empty-Type? t1*)
-                (let ([s2 (And* (map Arrow-rng P))])
-                  (subtype? s2 (Not t2))))
-            (Arrow-Phi t1 (And t2 s2*) P)
-            (Arrow-Phi t1* t2 P)))]
-    ;; this last clause was just #t from the paper...?
-    [_ (or (empty-Type? t1)
-           (empty-Type? t2))]))
-
-
-
 (define Univ : Type (-type top-base top top))
 (define Empty : Type  (-type bot-base bot bot))
 
@@ -832,6 +732,3 @@
     [`(Not ,t) (Not (->Type t))]))
 
 
-(module+ test
-  (run-subtype-tests ->Type subtype?)
-  )

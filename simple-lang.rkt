@@ -1,8 +1,7 @@
 #lang typed/racket/base
 
 (require racket/match
-         "grammar.rkt"
-         "list-set-utils.rkt")
+         "type-grammar.rkt")
 
 (provide (all-defined-out))
 
@@ -22,8 +21,8 @@
                   [r : Type]))
 (def-struct Arrow ([dom : Type]
                    [rng : Type]))
-(def-struct #:∀ (α) Or ([ts : (Setof α)]))
-(def-struct #:∀ (α) And ([ts : (Setof α)]))
+(def-struct #:∀ (α) Or ([ts : (Listof α)]))
+(def-struct #:∀ (α) And ([ts : (Listof α)]))
 (def-struct #:∀ (α) Not ([t : α]))
 
 (: -or (All (X) (-> (∩ Type X) * (Or X))))
@@ -39,8 +38,8 @@
 ;(struct Var ())
 ;(struct Rec ([x : Var] [t : Atom]) #:transparent)
 
-(define Univ (And (set)))
-(define Empty (Or (set)))
+(define Univ (And (list)))
+(define Empty (Or (list)))
 
 (define UnivProd (Prod Univ Univ))
 (define UnivArrow (Arrow Empty Univ))
