@@ -13,7 +13,6 @@
 
 
 (require racket/match
-         "type-grammar.rkt"
          "lbdd-lang2.rkt"
          "subtype-test-suite.rkt"
          "tunit.rkt")
@@ -30,6 +29,9 @@
 (define empty-type-cache
   : (Mutable-HashTable Fixnum (Listof (Pairof Type Boolean)))
   (make-hasheq))
+
+(define (clean-the-cache!)
+  (hash-clear! empty-type-cache))
 
 (: empty-Type? (-> Type Boolean))
 (define (empty-Type? t)

@@ -6,8 +6,6 @@
 ;; to represent DNF types.
 
 (require racket/match
-         (only-in racket/unsafe/ops unsafe-fx<)
-         "type-grammar.rkt"
          "lbdd-lang1.rkt"
          "subtype-test-suite.rkt"
          "tunit.rkt")

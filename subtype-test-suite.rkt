@@ -327,14 +327,16 @@
 
 
 (: syntactic-subtype-timing (All (X Y) (-> Symbol
+                                           (-> Void)
                                            (-> TypeSexp X)
                                            (-> X X Boolean)
                                            Symbol
+                                           (-> Void)
                                            (-> TypeSexp Y)
                                            (-> Y Y Boolean)
                                            Void)))
-(define (syntactic-subtype-timing name1 ->type1 subtype1?
-                                  name2 ->type2 subtype2?)
+(define (syntactic-subtype-timing name1 pre-thunk1 ->type1 subtype1?
+                                  name2 pre-thunk2 ->type2 subtype2?)
   (: single-test (-> Natural
                      Symbol
                      (Listof (List TypeSexp TypeSexp))
@@ -343,27 +345,29 @@
     (define lhs (map (ann first  (-> (List TypeSexp TypeSexp) TypeSexp)) types))
     (define rhs (map (ann second (-> (List TypeSexp TypeSexp) TypeSexp)) types))
     (: test (All (X) (-> Symbol
+                         (-> Void)
                          (-> TypeSexp X)
                          (-> X X Boolean)
                          (Listof Boolean))))
-    (define (test name ->type subtype?)
+    (define (test name pre-thunk ->type subtype?)
       (let ([ls (map ->type lhs)]
             [rs (map ->type rhs)])
-        (collect-garbage)
-        (collect-garbage)
-        (collect-garbage)
         (for ([l (in-list ls)]
               [r (in-list rs)])
+          (pre-thunk)
+          (collect-garbage)
+          (collect-garbage)
+          (collect-garbage)
           (time
            (for ([_ (in-range iters)])
              (subtype? l r))))
         (map subtype? ls rs)))
     (printf "test:~a:~a (~a iterations)\n" test-name name1 iters)
     (define res1
-      (test name1 ->type1 subtype1?))
+      (test name1 pre-thunk1 ->type1 subtype1?))
     (printf "test:~a:~a (~a iterations)\n" test-name name2 iters)
     (define res2
-      (test name2 ->type2 subtype2?))
+      (test name2 pre-thunk2 ->type2 subtype2?))
     (unless (equal? res1 res2)
       (error 'single-test "got ~a/~a with input ~a\n"
              res1 res2 types))

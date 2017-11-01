@@ -10,9 +10,11 @@
 (: syntactic/semantic-timing-thunk (-> Void))
 (define syntactic/semantic-timing-thunk
   (λ () (syntactic-subtype-timing 'syntactic
+                                  void
                                   syn:->Type
                                   syn:subtype?
                                   'semantic
+                                  lbdd:clean-the-cache!
                                   lbdd:->Type
                                   lbdd:subtype?)))
 
