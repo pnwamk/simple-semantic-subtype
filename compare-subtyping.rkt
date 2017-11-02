@@ -2,7 +2,7 @@
 
 (require "subtype-test-suite.rkt"
          (prefix-in naive: "naive-subtype.rkt")
-         (prefix-in lbdd: "lbdd-semantic-subtyping3.rkt")
+         (prefix-in lbdd: "lbdd-semantic-subtyping4.rkt")
          (prefix-in syn: "syntactic-subtyping.rkt"))
 
 (provide syntactic/semantic-timing-thunk)

@@ -1,4 +1,4 @@
-#lang typed/racket/base
+#lang racket/base
 
 
 ;; An implementation of the semantic subtyping algorithm
@@ -14,26 +14,23 @@
 
 (require racket/match
          "lbdd-lang2.rkt"
-         "subtype-test-suite.rkt"
-         "tunit.rkt")
+         "subtype-test-suite.rkt")
 
 
 (provide (all-defined-out)
          (all-from-out "lbdd-lang2.rkt"))
 
 
-(: subtype? (-> Type Type Boolean))
+; (-> Type Type Boolean)
 (define (subtype? t1 t2)
   (empty-Type? (Diff t1 t2)))
 
-(define empty-type-cache
-  : (Mutable-HashTable Fixnum (Listof (Pairof Type Boolean)))
-  (make-hasheq))
+(define empty-type-cache (make-hasheq))
 
 (define (clean-the-cache!)
   (hash-clear! empty-type-cache))
 
-(: empty-Type? (-> Type Boolean))
+; (-> Type Boolean)
 (define (empty-Type? t)
   (define hc (Rep-hash-code t))
   (define bucket (hash-ref empty-type-cache hc #f))
@@ -53,8 +50,8 @@
      res]))
 
 
-(: empty-Prod? (-> (BDD Prod) Type Type (Listof Prod)
-                   Boolean))
+; (-> (BDD Prod) Type Type (Listof Prod)
+;     Boolean)
 (define (empty-Prod? t s1 s2 N)
   (match t
     [(? Top?) (or (empty-Type? s1)
@@ -66,7 +63,7 @@
           (empty-Prod? u s1 s2 N)
           (empty-Prod? r s1 s2 (cons p N)))]))
 
-(: Prod-Phi (-> Type Type (Listof Prod) Boolean))
+; (-> Type Type (Listof Prod) Boolean)
 (define (Prod-Phi s1 s2 N)
   (match N
     [(cons (Prod _ t1 t2) N)
@@ -79,8 +76,8 @@
     [_ #f]))
 
 
-(: empty-Arrow? (-> (BDD Arrow) Type (Listof Arrow) (Listof Arrow)
-                    Boolean))
+; (-> (BDD Arrow) Type (Listof Arrow) (Listof Arrow)
+;     Boolean)
 (define (empty-Arrow? t dom P N)
   (match t
     [(? Top?) (ormap (match-lambda
@@ -95,8 +92,8 @@
           (empty-Arrow? r dom P (cons a N)))]))
 
 
-(: Arrow-Phi (-> Type Type (Listof Arrow)
-                 Boolean))
+; (-> Type Type (Listof Arrow)
+;    Boolean)
 (define (Arrow-Phi t1 t2 P)
   (match P
     [(cons (Arrow _ s1* s2*) P)
