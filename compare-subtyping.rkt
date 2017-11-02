@@ -1,4 +1,4 @@
-#lang typed/racket/base
+#lang racket/base
 
 (require "subtype-test-suite.rkt"
          (prefix-in naive: "naive-subtype.rkt")
@@ -7,7 +7,7 @@
 
 (provide syntactic/semantic-timing-thunk)
 
-(: syntactic/semantic-timing-thunk (-> Void))
+
 (define syntactic/semantic-timing-thunk
   (λ () (syntactic-subtype-timing 'syntactic
                                   void
@@ -17,6 +17,7 @@
                                   lbdd:clean-the-cache!
                                   lbdd:->Type
                                   lbdd:subtype?)))
+
 
 (module+ test
   (syntactic/semantic-timing-thunk))

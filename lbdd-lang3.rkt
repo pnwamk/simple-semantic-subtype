@@ -11,12 +11,31 @@
                   unsafe-fx<
                   unsafe-fxxor
                   unsafe-fx*)
+         (for-syntax racket/base)
          "type-grammar.rkt"
          "subtype-test-suite.rkt"
          "tunit.rkt")
 
 (provide (all-defined-out))
 
+
+(define-syntax inner-hash-cons
+  (syntax-rules ()
+    [(_ make-exp cache fld)
+     (let ([cached (hash-ref cache fld #f)])
+       (cond
+         [cached]
+         [else
+          (define val make-exp)
+          (hash-set! cache fld val)
+          val]))]
+    [(_ make-exp cache fld flds ...)
+     (let ([inner-cache (hash-ref! cache fld make-weak-hasheq)])
+       (inner-hash-cons make-exp inner-cache flds ...))]))
+
+(define-syntax-rule (make-hash-cons [fld flds ...] #:construct make-exp)
+  (let ([cache (make-weak-hasheq)])
+    (λ (fld flds ...) (inner-hash-cons make-exp cache fld flds ...))))
 
 
 ;
@@ -44,10 +63,10 @@
 ;; just things that inherit from it
 (struct Rep ([hash-code : Fixnum]) #:transparent)
 
-(struct Top Rep () #:transparent)
+(struct Top Rep ())
 (define top (Top 15661)) ;; some prime
 
-(struct Bot Rep () #:transparent)
+(struct Bot Rep ())
 (define bot (Bot 17047)) ;; some prime
 
 (define-syntax hash-xor
@@ -67,13 +86,23 @@
   #:transparent)
 
 (: -type (-> Base (BDD Prod) (BDD Arrow) Type))
-(define (-type bs ps as)
-  (Type (hash-xor (Rep-hash-code bs)
-                  (Rep-hash-code ps)
-                  (Rep-hash-code as))
-        bs
-        ps
-        as))
+(define -type
+  (let ([cache (make-weak-hasheq)])
+    (λ (bs ps as)
+      (cond
+        [(hash-ref cache bs #f)
+         => (λ (inner-cache) )]
+        [else
+         (define inner-cache (make-weak-hasheq))
+         (hash-set! cache bs inner-cache)])
+      (cond
+        [])
+      (Type (hash-xor (Rep-hash-code bs)
+                      (Rep-hash-code ps)
+                      (Rep-hash-code as))
+            bs
+            ps
+            as))))
 
 (: Type<? (-> Type Type Boolean))
 (define (Type<? t1 t2)

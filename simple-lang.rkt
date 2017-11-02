@@ -1,35 +1,19 @@
-#lang typed/racket/base
+#lang racket/base
 
-(require racket/match
-         "type-grammar.rkt")
+(require racket/match)
 
 (provide (all-defined-out))
 
-(define-syntax def-struct
-  (syntax-rules ()
-      [(_ name (fld ...))
-       (struct name (fld ...) #:transparent)]
-    [(_ #:∀ (poly-ids ...) name (fld ...))
-       (struct (poly-ids ...) name (fld ...) #:transparent)]))
+; a Tag is a symbol
+(struct Prod (l r) #:transparent)
+(struct Arrow (dom rng) #:transparent)
+(struct Or (ts) #:transparent)
+(struct And (ts) #:transparent)
+(struct Not (t) #:transparent)
 
-
-(define-type Atom (U Tag Prod Arrow))
-(define-type Type (U Atom (Or Type) (And Type) (Not Type)))
-
-(define-type Tag Symbol)
-(def-struct Prod ([l : Type]
-                  [r : Type]))
-(def-struct Arrow ([dom : Type]
-                   [rng : Type]))
-(def-struct #:∀ (α) Or ([ts : (Listof α)]))
-(def-struct #:∀ (α) And ([ts : (Listof α)]))
-(def-struct #:∀ (α) Not ([t : α]))
-
-(: -or (All (X) (-> (∩ Type X) * (Or X))))
 (define (-or . ts)
   (Or ts))
 
-(: -and (-> Type * Type))
 (define (-and . ts)
   (And ts))
 
@@ -149,18 +133,9 @@
 (define Bool (-or T F))
 (define Tag? symbol?)
 
-
-(define-predicate Atom? Atom)
-(define-predicate Not-Atom? (Not Atom))
-(define-predicate Not-Tag? (Not Tag))
-(define-predicate Not-Prod? (Not Prod))
-(define-predicate Not-Arrow? (Not Arrow))
-
-(: Diff (-> Type Type Type))
 (define (Diff t1 t2) (-and t1 (Not t2)))
 
 
-(: ->Type (-> TypeSexp Type))
 (define (->Type sexp)
   (match sexp
     ['Univ Univ]

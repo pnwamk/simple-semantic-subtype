@@ -11,3 +11,33 @@ implementation of [CDuce](http://www.cduce.org/).
 
 Many thanks to Castagna et al. for their work in designing and clearly 
 describing these algorithms over the course of their work.
+
+
+The types follow the following grammar:
+
+```
+;; TypeSexp ::= Univ
+;;            | Empty
+;;            | Unit
+;;            | Bool
+;;            | Str
+;;            | UnivProd
+;;            | UnivArrow
+;;            | Int
+;;            | T
+;;            | F
+;;            | Nat
+;;            | PosInt
+;;            | NegInt
+;;            | UInt8
+;;            | UInt16
+;;            | UInt32
+;;            | Int8
+;;            | Int16
+;;            | Int32
+;;            | (Prod TypeSexp TypeSexp)
+;;            | (Arrow TypeSexp TypeSexp)
+;;            | (Or TypeSexp ...)
+;;            | (And TypeSexp ...)
+;;            | (Not TypeSexp)
+```

@@ -1,56 +1,49 @@
-#lang typed/racket/base
+#lang racket/base
 
 (require racket/match
          racket/list
-         "tunit.rkt"
-         "type-grammar.rkt")
+         rackunit)
 
 (provide run-subtype-tests
          compare-subtype/random-types
          syntactic-subtype-timing)
 
-(define Empty : TypeSexp 'Empty)
-(define Univ : TypeSexp 'Univ)
-(define Unit : TypeSexp 'Unit)
-(define UnivProd : TypeSexp 'UnivProd)
-(define UnivArrow : TypeSexp 'UnivArrow)
-(define Int : TypeSexp 'Int)
-(define Nat : TypeSexp 'Nat)
-(define PosInt : TypeSexp 'PosInt)
-(define NegInt : TypeSexp 'NegInt)
-(define UInt8 : TypeSexp 'UInt8)
-(define UInt16 : TypeSexp 'UInt16)
-(define UInt32 : TypeSexp 'UInt32)
-(define Int8 : TypeSexp 'Int8)
-(define Int16 : TypeSexp 'Int16)
-(define Int32 : TypeSexp 'Int32)
-(define Bool : TypeSexp 'Bool)
-(define Str : TypeSexp 'Str)
-(define T : TypeSexp 'T)
-(define F : TypeSexp 'F)
+(define Empty 'Empty)
+(define Univ 'Univ)
+(define Unit 'Unit)
+(define UnivProd 'UnivProd)
+(define UnivArrow 'UnivArrow)
+(define Int 'Int)
+(define Nat 'Nat)
+(define PosInt 'PosInt)
+(define NegInt 'NegInt)
+(define UInt8 'UInt8)
+(define UInt16 'UInt16)
+(define UInt32 'UInt32)
+(define Int8 'Int8)
+(define Int16 'Int16)
+(define Int32 'Int32)
+(define Bool 'Bool)
+(define Str 'Str)
+(define T 'T)
+(define F 'F)
 
-(: Prod (-> TypeSexp TypeSexp TypeSexp))
 (define (Prod l r) `(Prod ,l ,r))
 
-(: Arrow (-> TypeSexp TypeSexp TypeSexp))
 (define (Arrow d r) `(Arrow ,d ,r))
 
-(: And (-> TypeSexp * TypeSexp))
 (define (And . ts)
   `(And . ,ts))
 
-(: Or (-> TypeSexp * TypeSexp))
 (define (Or . ts)
   `(Or . ,ts))
 
-(: Not (-> TypeSexp TypeSexp))
 (define (Not t)
   `(Not ,t))
 
-(: random-type (-> Natural TypeSexp))
+; (-> Natural TypeSexp)
 (define random-type
   (let ([base-types
-         : (Vectorof TypeSexp)
          (vector-immutable Empty Univ Unit UnivProd UnivArrow Int Nat PosInt NegInt
                            UInt8 UInt16 UInt32 Int8 Int16 Int32 Bool Str T F)])
     (λ (fuel)
@@ -69,14 +62,8 @@
              [(zero? (random 10)) (Not ty)]
              [else ty]))]))))
 
-(: compare-subtype/random-types (All (X Y) (-> Natural
-                                            (-> TypeSexp X)
-                                            (-> X X Boolean)
-                                            (-> TypeSexp Y)
-                                            (-> Y Y Boolean)
-                                            Void)))
+
 (define (compare-subtype/random-types iters ->type1 subtype1? ->type2 subtype2?)
-  (: run-test (-> Natural Void))
   (define (run-test fuel)
     (let* ([ty1 (random-type fuel)]
            [ty2 (random-type fuel)]
@@ -117,13 +104,9 @@
     (eprintf "Finished iter ~a!\n" i))
   (printf "Finished comparing subtyping functions with ~a iterations.\n"  iters))
 
-(: run-subtype-tests (All (X) (-> (-> TypeSexp X)
-                                  (-> X X Boolean)
-                                  Void)))
+
 (define (run-subtype-tests ->X subtype-rel)
-  (let ([subtype? (λ ([t1 : TypeSexp]
-                      [t2 : TypeSexp])
-                    (subtype-rel (->X t1) (->X t2)))])
+  (let ([subtype? (λ (t1 t2) (subtype-rel (->X t1) (->X t2)))])
     ;; basic
     (check-true  (subtype? Int Univ))
     (check-true  (subtype? (Not Int) (Not Nat)))
@@ -322,33 +305,16 @@
                               (And (Arrow NegInt (Or Int32 Int32)) NegInt))
                           T))
 
-    (display-test-results)))
+    (printf "tests complete!")))
 
 
 
-(: syntactic-subtype-timing (All (X Y) (-> Symbol
-                                           (-> Void)
-                                           (-> TypeSexp X)
-                                           (-> X X Boolean)
-                                           Symbol
-                                           (-> Void)
-                                           (-> TypeSexp Y)
-                                           (-> Y Y Boolean)
-                                           Void)))
 (define (syntactic-subtype-timing name1 pre-thunk1 ->type1 subtype1?
                                   name2 pre-thunk2 ->type2 subtype2?)
-  (: single-test (-> Natural
-                     Symbol
-                     (Listof (List TypeSexp TypeSexp))
-                     Void))
+
   (define (single-test iters test-name types)
-    (define lhs (map (ann first  (-> (List TypeSexp TypeSexp) TypeSexp)) types))
-    (define rhs (map (ann second (-> (List TypeSexp TypeSexp) TypeSexp)) types))
-    (: test (All (X) (-> Symbol
-                         (-> Void)
-                         (-> TypeSexp X)
-                         (-> X X Boolean)
-                         (Listof Boolean))))
+    (define lhs (map first types))
+    (define rhs (map second types))
     (define (test name pre-thunk ->type subtype?)
       (let ([ls (map ->type lhs)]
             [rs (map ->type rhs)])

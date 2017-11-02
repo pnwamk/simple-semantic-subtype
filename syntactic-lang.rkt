@@ -1,4 +1,4 @@
-#lang typed/racket/base
+#lang racket/base
 
 ;; A straightforward, syntactic subtyping algorithm
 ;; for a subset of the set theoretic types described
@@ -10,34 +10,20 @@
 
 
 (require racket/match
-         racket/set
-         "type-grammar.rkt")
+         racket/set)
 
 (provide (all-defined-out))
 
-(define-syntax def-struct
-  (syntax-rules ()
-      [(_ name (fld ...))
-       (struct name (fld ...) #:transparent)]
-    [(_ #:∀ (poly-ids ...) name (fld ...))
-       (struct (poly-ids ...) name (fld ...) #:transparent)]))
 
+; a Tag is a symbol
+(struct Prod (l r) #:transparent)
+(struct Arrow (dom rng) #:transparent)
+(struct Or (ts) #:transparent)
+(struct Univ () #:transparent)
 
-(define-type Atom (U Tag Prod Arrow))
-(define-type Type (U Atom Or Univ))
-
-(define-type Tag Symbol)
-(def-struct Prod ([l : Type]
-                  [r : Type]))
-(def-struct Arrow ([dom : Type]
-                   [rng : Type]))
-(def-struct Or ([ts : (Setof Type)]))
-(def-struct Univ ())
-
-(: -or (-> Type * Type))
 (define (-or . initial-ts)
-  (let loop ([todo   : (Listof Type) initial-ts]
-             [result : (Listof Type) '()])
+  (let loop ([todo initial-ts]
+             [result '()])
     (match todo
       [(cons (Or ts*) ts)
        (loop ts (append (set->list ts*) result))]
@@ -155,16 +141,11 @@
        PosInt>UInt32-bits))
 
 
-
-
 (define Bool (-or T F))
 (define Tag? symbol?)
 
 
-(define-predicate Atom? Atom)
 
-
-(: ->Type (-> TypeSexp Type))
 (define (->Type sexp)
   (match sexp
     ['Univ (Univ)]
